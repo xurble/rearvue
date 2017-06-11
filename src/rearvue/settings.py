@@ -37,6 +37,8 @@ INSTAGRAM_CLIENT_SECRET = settings_server.INSTAGRAM_CLIENT_SECRET
 DEFAULT_DOMAIN = settings_server.DEFAULT_DOMAIN
 DEFAULT_DOMAIN_PROTOCOL = settings_server.DEFAULT_DOMAIN_PROTOCOL # http or https
 
+ALLOWED_HOSTS = settings_server.ALLOWED_HOSTS
+
 # Application definition
 
 INSTALLED_APPS = (
