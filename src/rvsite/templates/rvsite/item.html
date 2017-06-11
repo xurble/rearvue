@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load rv_filters %}
+
+{% block content %}
+
+
+    <div class="row">
+        <br>
+        <div class="col-sm-offset-2 col-sm-8 nolink item">
+            {% if item.media_type == 1 %}
+                <img src="/static/{{item.primary_media}}" alt="{{item.title}}" style="max-width:100%">
+            {% else %}
+                <video src="/static/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="/static/{{item.thumbnail}}" ></video>
+            {% endif %}
+            <h3>{{item.title}}</h3>
+            <p>{{item.caption}}</p>
+        </div>
+
+
+    </div>  
+     
+    <div class="row">
+        <div class="col-sm-offset-2 col-sm-8 link">
+            <ul class="item-details">
+                <li>Taken <a href="{% url "show_day" year=year month=month day=day %}">{{day}}</a> <a href="{% url "show_month" year=year month=month %}">{{month_name}}</a> <a href="{% url "show_year" year=year %}">{{year}}</a></li>     
+                <li><a href="{{item.remote_url}}">View the original on {{item.service.type}}</a></li> 
+            </ul>      
+        </div>
+    </div>
+
+
+
+
+{% endblock %}

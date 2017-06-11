@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load rv_filters %}
+
+{% block content %}
+
+    <div class="row">
+        <div class="col-sm-9 link">
+            <h2 class="head">in {{month_name}} <a href="{% url "show_year" year=year %}">{{year}}</a></h2>
+        </div>
+        <div class="col-sm-3">
+            <table class="month">
+                {% for week in calendar %}
+                    <tr>
+                        {% for day in week %}
+                            {% if day.0 %}
+                                {% if day.1 %}
+                                    <td class="stuff">
+                                        <a href="{% url 'show_day' year=year month=month day=day.0 %}">{{day.0}}</a>
+                                {% else %}
+                                    <td>
+                                        {{day.0}}
+                                {% endif %}
+                            {% else %}
+                                <td>
+                            {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+            <p></p>
+        </div>
+    </div>
+    <div class="row">
+        {% for i in items %}
+        <div class="col-xs-4 col-sm-2">
+            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/static/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
+        </div>
+        {% endfor %}
+    </div>
+    
+
+     
+
+
+
+{% endblock %}

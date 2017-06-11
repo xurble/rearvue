@@ -1,0 +1,213 @@
+
+
+
+@font-face {
+    font-family: 'Junction';
+    src: url('../fonts/junction-bold.eot');
+    src: url('../fonts/junction-bold.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/junction-bold.woff') format('woff'),
+         url('../fonts/junction-bold.ttf') format('truetype'),
+         url('../fonts/junction-bold.svg#junctionbold') format('svg');
+    font-weight: bold;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: 'Junction';
+    src: url('../fonts/junction-light.eot');
+    src: url('../fonts/junction-light.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/junction-light.woff') format('woff'),
+         url('../fonts/junction-light.ttf') format('truetype'),
+         url('../fonts/junction-light.svg#junctionlight') format('svg');
+    font-weight: 300;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: 'Junction';
+    src: url('../fonts/junction-regular.eot');
+    src: url('../fonts/junction-regular.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/junction-regular.woff') format('woff'),
+         url('../fonts/junction-regular.ttf') format('truetype'),
+         url('../fonts/junction-regular.svg#junctionregular') format('svg');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+body {
+    font-family: Helvetica;
+}
+
+.container {
+    //background-color: #EEE;
+}
+
+a, a:visited, a:hover {
+    color:#333;
+    text-decoration: none;
+}
+
+.nolink img {
+    margin-bottom: 5px;
+}
+
+.link a, .link a:visited {
+    border-bottom:1px dotted #bbb;
+    margin:0px 0px 5px;
+
+
+	position: relative;
+	display: inline-block;
+	outline: none;
+	text-decoration: none;
+}
+
+.link a:hover {
+    text-decoration: none;
+    color:#3d8bc5
+    border-bottom:none;
+    
+}
+
+
+.link a::after {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	width: 100%;
+	height: 1px;
+	background: #666;
+	content: '';
+	opacity: 0;
+	transition: height 0.3s, opacity 0.3s, transform 0.3s;
+	transform: translateY(-10px);
+}
+
+.link a:hover::after,
+.link a:focus::after {
+	height: 3px;
+	opacity: 1;
+	-webkit-transform: translateY(0px);
+	-moz-transform: translateY(0px);
+	transform: translateY(0px);
+}
+
+
+
+
+.error {
+    color:red;
+    font-weight: bold;
+    padding:15px;
+}
+
+
+html, body {
+    height: 100%;
+}
+
+.container {
+    min-height: 100%;
+    margin-bottom:-50px;
+    padding-bottom: 60px;
+}
+
+footer {
+    display: block;
+    text-align: center;  
+    height: 50px;
+}
+
+footer ul, footer ul li {
+    list-style: none;
+    display: inline-block;
+    margin: 5px 5px 0px 0px;
+    padding:0;
+}
+
+h1, h2, h3, h4 {
+    font-family: Junction;
+    font-weight: 300;
+    padding-top: 0;
+}
+
+
+h2 {
+    font-size:24px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    margin-top: 2px;
+}
+
+h2.head {
+    margin-left:30px
+}
+
+h3 {
+    font-size:16px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 25px 0px 3px 0px;
+    margin:0;
+}
+
+.item {
+    margin-bottom:20px
+}
+
+.item h3 {
+    padding: 3px 0px 0px 0px;
+}
+
+
+
+img.poster_image {
+    max-width: 100%;
+    
+}
+
+div.fp_links ul {
+    margin-bottom: 20px;
+    margin-top:0px;
+}
+
+
+@media (min-width: 768px) {
+    table.month {
+        margin-top: -50px;
+        margin-bottom: 30px;
+    }
+}
+
+
+table.month td {
+    min-width: 30px; 
+    height: 30px;  
+    text-align: center; 
+    border:1px dotted #ddd;
+
+}
+
+table.month a {
+    display:block;
+    background-color: #DDD;
+    height: 100%;
+    line-height: 30px;
+}
+
+
+table.month a:hover {
+    color:#ddd;
+    background-color: #333;
+}
+
+
+ul.item-details {
+    float:right;
+
+
+    

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+
+    <div class="container">
+    
+        <div class="row">
+        
+            <div class="col-sm-12">
+        
+                <h2>Services</h2>
+                {% if not s.count %}
+                    <p>None yet</p>
+                {% endif %}
+                <ul>
+                    {% for s in services %}
+                        <li><a href="{{s.type}}_connect/{{s.id}}/">{{s}}</a></li>
+                    {% endfor %}
+                </ul>
+                
+                <h2>Add</h2>
+                <ul>
+                    <li>
+                        <a href="{% url "instagram_connect" domain_name=domain.name iid="new" %}">Add Instagram Account</a>
+                    </li>
+                    <li>
+                        <a href="{% url "flickr_connect" domain_name=domain.name iid="new" %}">Add Flickr Account</a>
+                    </li>
+                </ul>
+
+            </div>
+        </div>
+
+
+
+{% endblock %}

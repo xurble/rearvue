@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load rv_filters %}
+
+{% block content %}
+
+    <div class="row">
+        <div class="col-sm-10 link">
+            <h2 class="head">on {{day}} <a href="{% url "show_month" year=year month=month %}">{{month_name}}</a> <a href="{% url "show_year" year=year %}">{{year}}</a></h2>
+        </div>
+    </div>
+
+        {% for i in items %}
+            <div class="row">
+                <br>
+                <div class="col-sm-offset-2 col-sm-8 link item">
+                    {% if i.media_type == 1 %}
+                        <a href="{% url "show_item" year=year month=month day=day iid=i.id %}"><img src="/static/{{i.primary_media}}" alt="{{i.title}}" style="max-width:100%"></a>
+                    {% else %}
+                        <video src="/static/{{i.original_media}}" alt="{{i.title}}" style="max-width:100%" controls poster="/static/{{i.thumbnail}}" ></video><br>
+                    {% endif %}
+                    {% if not i.title %}
+                        <a href="{% url "show_item" year=year month=month day=day iid=i.id %}">→</a>
+                    {% else %}
+                        <h3><a href="{% url "show_item" year=year month=month day=day iid=i.id %}">{{i.title}}</a></h3>
+                    {% endif %}
+                    <p>{{i.caption}}</p>
+                </div>
+            </div>  
+        {% endfor %}
+     
+
+
+
+{% endblock %}
