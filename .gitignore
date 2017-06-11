@@ -2,8 +2,8 @@
 
 *.pyc
 
-src/settings_server.py
 
 src/rv.fcgi
+src/rearvue/settings_server.py
 
 data_store/*
