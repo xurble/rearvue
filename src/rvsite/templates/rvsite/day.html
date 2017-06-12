@@ -9,25 +9,41 @@
         </div>
     </div>
 
-        {% for i in items %}
-            <div class="row">
-                <br>
-                <div class="col-sm-offset-2 col-sm-8 link item">
-                    {% if i.media_type == 1 %}
-                        <a href="{% url "show_item" year=year month=month day=day iid=i.id %}"><img src="/static/{{i.primary_media}}" alt="{{i.title}}" style="max-width:100%"></a>
-                    {% else %}
-                        <video src="/static/{{i.original_media}}" alt="{{i.title}}" style="max-width:100%" controls poster="/static/{{i.thumbnail}}" ></video><br>
-                    {% endif %}
-                    {% if not i.title %}
-                        <a href="{% url "show_item" year=year month=month day=day iid=i.id %}">→</a>
-                    {% else %}
-                        <h3><a href="{% url "show_item" year=year month=month day=day iid=i.id %}">{{i.title}}</a></h3>
-                    {% endif %}
-                    <p>{{i.caption}}</p>
-                </div>
-            </div>  
-        {% endfor %}
+    {% for i in items %}
+        <div class="row">
+            <br>
+            <div class="col-sm-offset-2 col-sm-8 link item">
+                {% if i.media_type == 1 %}
+                    <a href="{% url "show_item" year=year month=month day=day iid=i.id %}"><img src="/static/{{i.primary_media}}" alt="{{i.title}}" style="max-width:100%"></a>
+                {% else %}
+                    <video src="/static/{{i.original_media}}" alt="{{i.title}}" style="max-width:100%" controls poster="/static/{{i.thumbnail}}" ></video><br>
+                {% endif %}
+                {% if not i.title %}
+                    <a href="{% url "show_item" year=year month=month day=day iid=i.id %}">→</a>
+                {% else %}
+                    <h3><a href="{% url "show_item" year=year month=month day=day iid=i.id %}">{{i.title}}</a></h3>
+                {% endif %}
+                <p>{{i.caption}}</p>
+            </div>
+        </div>  
+    {% endfor %}
      
+
+    {% if other_items %}
+        <div class="row">
+            <div class="col-sm-offset-2 col-sm-8 link item">
+                <h3>On This Day</h3>
+                <div class="row">
+                {% for i in other_items %}
+                    <div class="col-xs-2">
+                        <a href="{% url "show_item" year=i.date_created.year month=i.date_created.month day=i.date_created.day  iid=i.id %}"><img src="/static/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
 
 
 
