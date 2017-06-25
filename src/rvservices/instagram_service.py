@@ -37,7 +37,7 @@ def update_instagram():
             
         #print url
         
-        r = requests.get(url)
+        r = requests.get(url,timeout=30, verify=False)
         
         media_list = r.json()["data"]
 
@@ -88,7 +88,7 @@ def update_instagram():
                 url += "&min_id=" + since
 
             print url
-            r = requests.get(url)
+            r = requests.get(url,timeout=30, verify=False)
     
             media_list = r.json()["data"]
         if maxid:                
@@ -103,12 +103,12 @@ def mirror_instagram():
         print item.caption
         data = json.loads(item.raw_data)
         if data["type"] == "image":
-            ret = requests.get(data["images"]["standard_resolution"]["url"])
+            ret = requests.get(data["images"]["standard_resolution"]["url"],timeout=30, verify=False)
             ext = "jpg"
             item.media_type = 1
         else:
             ext = "mp4"
-            ret = requests.get(data["videos"]["standard_resolution"]["url"])
+            ret = requests.get(data["videos"]["standard_resolution"]["url"],timeout=30, verify=False)
             item.media_type = 2
             
         if ret.ok:
@@ -127,7 +127,7 @@ def mirror_instagram():
         
             #get the instagram thumbnail, stops us having to postframe the movies
                 
-        ret2 = requests.get(data["images"]["thumbnail"]["url"])
+        ret2 = requests.get(data["images"]["thumbnail"]["url"],timeout=30, verify=False)
         if ret2.ok:
             output_path = item.make_thumbnail_path("jpg")
                             
