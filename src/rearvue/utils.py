@@ -8,7 +8,7 @@ from rvsite.models import RVDomain
 
 def make_full_path(local_path):
     
-    return os.path.join(settings.BASE_DIR, "..", "data_store",local_path)
+    return os.path.join(settings.DATA_STORE, local_path)
     
     
 def make_folder(full_path_to_file):

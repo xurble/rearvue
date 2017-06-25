@@ -26,6 +26,7 @@ SECRET_KEY = settings_server.SECRET_KEY
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = settings_server.DEBUG
 
+DATA_STORE = settings_server.DATA_STORE
 
 FLICKR_KEY =    settings_server.FLICKR_KEY
 FLICKR_SECRET = settings_server.FLICKR_SECRET
