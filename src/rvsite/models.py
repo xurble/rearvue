@@ -72,6 +72,9 @@ class RVItem(models.Model):
 
     mirror_state     = models.IntegerField(default=0)
     
+    def __unicode__(self):
+        return "{title} on {service}".format(title=title,service=service.name)
+    
 
 
     def make_original_path(self,file_type):

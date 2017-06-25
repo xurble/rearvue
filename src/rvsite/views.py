@@ -52,7 +52,7 @@ def show_year(request, year):
     start_date = datetime.date(year=int(year),month=1,day=1)
     end_date   = datetime.date(year=int(year),month=12,day=31)
     
-    items = RVItem.objects.filter(Q(domain=request.domain)&Q(date_created__gte=start_date)&Q(date_created__lte=end_date)&Q(mirror_state__gte=1)).order_by("?")
+    items = RVItem.objects.filter(Q(domain=request.domain)&Q(date_created__gte=start_date)&Q(date_created__lte=end_date)&Q(mirror_state__gte=1)& Q(public=True)).order_by("?")
     
     if request.user != request.domain.owner:
         items.filter(public=True)
@@ -86,7 +86,7 @@ def show_month(request, year, month):
             week[day]= [week[day],0]
                 
     
-    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)).order_by("date_created"))
+    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)& Q(public=True)).order_by("date_created"))
 
     for item in items:
         for week in thecal:
@@ -124,9 +124,9 @@ def show_day(request, year, month,day):
     the_date = datetime.date(year=int(year),month=int(month),day=int(day))
     
     
-    items = RVItem.objects.filter(date_created=the_date).filter(mirror_state=1).order_by("datetime_created")
+    items = RVItem.objects.filter(date_created=the_date).filter(mirror_state=1).filter(public=True).order_by("datetime_created")
  
-    other_items = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).exclude(date_created__year=int(year))
+    other_items = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).exclude(date_created__year=int(year))
     
     
     request.vals["items"] = items
@@ -147,7 +147,7 @@ def show_item(request, year, month, day, iid):
 
     request.vals["item"] = get_object_or_404(RVItem,id=int(iid))  
     
-    request.vals["other_items"] = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).exclude(date_created__year=int(year))
+    request.vals["other_items"] = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).exclude(date_created__year=int(year))
   
     
     return render(request, "rvsite/item.html",request.vals)    
