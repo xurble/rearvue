@@ -90,7 +90,7 @@ STATIC_URL = '/static/'
 
 STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
-    os.path.join(BASE_DIR, "..", "data_store"),
+    DATA_STORE,
 )
 
 print STATICFILES_DIRS
