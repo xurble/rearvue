@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+
 
 from django.db import models, migrations
 from django.conf import settings
@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('max_year', models.IntegerField(default=0)),
                 ('display_name', models.CharField(default=b'RearVue', max_length=128)),
                 ('blurb', models.TextField(default=b'', null=True, blank=True)),
-                ('owner', models.ForeignKey(to=settings.AUTH_USER_MODEL)),
+                ('owner', models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)),
             ],
             options={
             },
@@ -47,7 +47,7 @@ class Migration(migrations.Migration):
                 ('thumbnail', models.CharField(default=b'', max_length=256, blank=True)),
                 ('raw_data', models.TextField(default=b'', blank=True)),
                 ('mirror_state', models.IntegerField(default=0)),
-                ('domain', models.ForeignKey(to='rvsite.RVDomain')),
+                ('domain', models.ForeignKey(to='rvsite.RVDomain', on_delete=models.CASCADE)),
             ],
             options={
             },
@@ -66,7 +66,7 @@ class Migration(migrations.Migration):
                 ('max_update_id', models.CharField(default=b'', max_length=256, blank=True)),
                 ('auth_token', models.CharField(default=b'', max_length=256, blank=True)),
                 ('auth_secret', models.CharField(default=b'', max_length=256, blank=True)),
-                ('domain', models.ForeignKey(to='rvsite.RVDomain')),
+                ('domain', models.ForeignKey(to='rvsite.RVDomain', on_delete=models.CASCADE)),
             ],
             options={
             },
@@ -75,13 +75,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='rvitem',
             name='service',
-            field=models.ForeignKey(to='rvsite.RVService'),
+            field=models.ForeignKey(to='rvsite.RVService', on_delete=models.CASCADE),
             preserve_default=True,
         ),
         migrations.AddField(
             model_name='rvdomain',
             name='poster_image',
-            field=models.ForeignKey(blank=True, to='rvsite.RVItem', null=True),
+            field=models.ForeignKey(blank=True, to='rvsite.RVItem', null=True, on_delete=models.SET_NULL),
             preserve_default=True,
         ),
     ]

@@ -7,7 +7,7 @@ from rvsite.models import *
 from rearvue import utils
 
 
-from flickr import FlickrAPI
+import flickrapi
 
 import json
 import requests
@@ -17,7 +17,7 @@ from django.conf import settings
 from PIL import Image
 
 
-
+ 
  
 def update_flickr():
 
@@ -25,19 +25,21 @@ def update_flickr():
     
     for service in f_services:
     
-        print "Updating %s" % service
+        print("Updating %s" % service)
+        
         
     
-        f = FlickrAPI(api_key=settings.FLICKR_KEY, api_secret=settings.FLICKR_SECRET, oauth_token=service.auth_token, oauth_token_secret=service.auth_secret)
+        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, format='parsed-json')
+        
 
         if service.userid == "":
             try:
-                u = f.get("flickr.people.findByUsername", params = { "username":service.username} )  
+                u = f.people.findByUsername( username = service.username )  
             
                 service.userid = u["user"]["id"]
                 service.save()                    
             except Exception as ex:        
-                print ex
+                print(ex)
                 return
         
         
@@ -50,16 +52,18 @@ def update_flickr():
         max_upload_date = 0
         while page < pages:
             page += 1
-            print "Getting page ", page
-            params = {
-                "extras": "date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
-                "user_id" : service.userid,
-                "page": page
-            }
+            print("Getting page ", page)
+  
             if service.max_update_id != "":
-                params["min_upload_date"] = service.max_update_id
-            
-            pix = f.get("flickr.people.getPhotos", params = params)["photos"]
+                min_date = service.max_update_id
+            else:
+                min_date = None
+                
+            pix = f.people.getPhotos(
+                extras="date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
+                user_id=service.userid,
+                page=page,
+                min_upload_date=min_date)["photos"]
             
             pages = int(pix["pages"])
             
@@ -73,7 +77,7 @@ def update_flickr():
                 try:
                     item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
                 except:
-                    print "NEW!"
+                    print("NEW!")
                     item = RVItem(item_id=i["id"],service=service,domain=service.domain)
 
                 item.title = i["title"]
@@ -102,11 +106,12 @@ def update_flickr():
 
 def mirror_flickr():
 
+    f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, format='parsed-json')
     
     queue = RVItem.objects.filter(mirror_state=0).filter(service__type="flickr")[:50]
     
     for item in queue:
-        print item.title.encode("utf-8")
+        print(item.title.encode("utf-8"))
         data = json.loads(item.raw_data)
 
         if data["media"] == "photo":
@@ -114,13 +119,12 @@ def mirror_flickr():
             ext = "jpg"
             item.media_type = 1
         else:
-
-            f = FlickrAPI(api_key=settings.FLICKR_KEY, api_secret=settings.FLICKR_SECRET, oauth_token=item.service.auth_token, oauth_token_secret=item.service.auth_secret)
-            size_list = f.get("flickr.photos.getSizes", params = { "photo_id":item.item_id} )["sizes"]["size"]  
+            size_list = f.photos.getSizes(photo_id=item.item_id)["sizes"]["size"]  
 
             ret = None
             for size in size_list:
                 if size["label"] == "Video Original":
+                    import pdb; pdb.set_trace()
                     ret = requests.get(size["source"],timeout=30, verify=False)
                     item.media_type = 2
                     ext = "mp4" # <------ need to go get that video        
@@ -159,10 +163,10 @@ def mirror_flickr():
             
             ratio = float(img.size[0]) / float(img.size[1])
             
-            w = 150
-            h = int(150 / ratio)
+            w = 300
+            h = int(300 / ratio)
             
-            print "resizing thumbnail" , w, h
+            print("resizing thumbnail" , w, h)
             
             
             img = img.resize((w,h),Image.BICUBIC)

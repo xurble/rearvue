@@ -11,11 +11,11 @@ https://docs.djangoproject.com/en/1.6/ref/settings/
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
 
-import settings_server
+from . import settings_server
 
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-print BASE_DIR
+print(BASE_DIR)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
@@ -53,7 +53,7 @@ INSTALLED_APPS = (
     'rvadmin',
 )
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -93,7 +93,7 @@ STATICFILES_DIRS = (
     DATA_STORE,
 )
 
-print STATICFILES_DIRS
+print(STATICFILES_DIRS)
 
 TEMPLATES = [
         {

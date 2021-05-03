@@ -13,20 +13,20 @@ class RVDomain(models.Model):
     min_year      = models.IntegerField(default=0)
     max_year      = models.IntegerField(default=0)
     
-    owner         = models.ForeignKey(User)
+    owner         = models.ForeignKey(User, on_delete=models.CASCADE)
     
     display_name  = models.CharField(max_length=128,default='RearVue')
-    poster_image  = models.ForeignKey('RVItem',null=True,blank=True)
+    poster_image  = models.ForeignKey('RVItem',null=True,blank=True, on_delete=models.CASCADE)
     
     blurb         = models.TextField(null=True,blank=True,default='')
     
-    def __unicode__(self):
+    def __str__(self):
         return "%s - %s" % (self.name,self.display_name)
 
 
 class RVService(models.Model):
     name           = models.CharField(max_length=512)
-    domain         = models.ForeignKey(RVDomain)
+    domain         = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
     type           = models.CharField(max_length=128)
     last_checked   = models.DateTimeField(default=datetime.datetime(2015, 1, 10, 17, 26, 51, 977260)) #old date makes it get checked right away
     username       = models.CharField(max_length=128,blank=True,default='')
@@ -38,15 +38,15 @@ class RVService(models.Model):
     
     
     
-    def __unicode__(self):
+    def __str__(self):
         
         return "%s (%s)" % (self.name,self.type)
 
 
 class RVItem(models.Model):
 
-    service          = models.ForeignKey(RVService)
-    domain           = models.ForeignKey(RVDomain)
+    service          = models.ForeignKey(RVService, on_delete=models.CASCADE)
+    domain           = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
 
     item_id          = models.CharField(max_length=128,db_index=True)
 
@@ -72,8 +72,8 @@ class RVItem(models.Model):
 
     mirror_state     = models.IntegerField(default=0)
     
-    def __unicode__(self):
-        return "{title} on {service}".format(title=title,service=service.name)
+    def __str__(self):
+        return "{title} on {service}".format(title=self.title,service=self.service.name)
     
 
 

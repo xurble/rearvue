@@ -4,8 +4,8 @@ from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required
 
 
-from instagram.client import InstagramAPI
-from flickr import FlickrAPI
+# from instagram.client import InstagramAPI
+# from flickr import FlickrAPI
 
 import datetime
 import requests
@@ -119,7 +119,7 @@ def flickr_connect(request, domain_name, iid):
         svc.auth_secret = oauth_token_secret
         svc.save()
 
-        print 'Connect with Flickr via: %s' % auth_url
+        print('Connect with Flickr via: %s' % auth_url)
         
         return HttpResponseRedirect(auth_url)
 

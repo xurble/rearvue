@@ -8,8 +8,10 @@ from rvsite.models import *
 from rearvue import utils
 
 
+
+from instapi import Client, ClientCompatPatch
+
 import requests
-from instagram.client import InstagramAPI
 
 # We use the client for the auth, but here we just freestyle it because we want raw JSON
 INSTAGRAM_MEDIA_URL = "https://api.instagram.com/v1/users/self/media/recent.json?access_token=%s&count=%d"
@@ -17,12 +19,15 @@ INSTAGRAM_MEDIA_URL = "https://api.instagram.com/v1/users/self/media/recent.json
 import json
 
 def update_instagram():
+
+    web_api = Client("xurble", "bobroberts")
+    import pdb; pdb.set_trace()
     
     ig_services = RVService.objects.filter(type="instagram")
     
     for service in ig_services:
     
-        print "Updating %s" % service
+        print("Updating %s" % service)
     
         
         since = None
@@ -43,10 +48,10 @@ def update_instagram():
 
         lastphoto = ""    
         while len(media_list):
-            print "PAGE:",page,since
+            print("PAGE:",page,since)
             for i in media_list:
-                if i.has_key("id"):
-                    print i["id"]
+                if "id" in i:
+                    print(i["id"])
                     lastphoto = i["id"]
                 
                 
@@ -54,11 +59,11 @@ def update_instagram():
                     try:
                         item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
                     except:
-                        print "NEW!"
+                        print("NEW!")
                         item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
                     if i["caption"]:
                         item.title = i["caption"]["text"]
-                        print item.title.encode("utf-8")
+                        print(item.title.encode("utf-8"))
                 
                     item.datetime_created = datetime.datetime.fromtimestamp(int(i["created_time"]))
                     item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
@@ -77,7 +82,7 @@ def update_instagram():
                     pass
             page +=1    
 
-            print "Page received, taking a break!"
+            print("Page received, taking a break!")
             time.sleep(5)
             if len(media_list) < 25:
                 #didn't get as many as we asked for so must be done
@@ -87,7 +92,7 @@ def update_instagram():
             if since:
                 url += "&min_id=" + since
 
-            print url
+            print(url)
             r = requests.get(url,timeout=30, verify=False)
     
             media_list = r.json()["data"]
@@ -100,7 +105,7 @@ def mirror_instagram():
     queue = RVItem.objects.filter(mirror_state=0).filter(service__type="instagram")[:50]
     
     for item in queue:
-        print item.caption
+        print(item.caption)
         data = json.loads(item.raw_data)
         if data["type"] == "image":
             ret = requests.get(data["images"]["standard_resolution"]["url"],timeout=30, verify=False)

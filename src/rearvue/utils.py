@@ -42,7 +42,7 @@ def page(func):
 
         request.vals = {}
         request.vals["domain"] = request.domain
-        request.vals["year_range"] = range(request.domain.min_year,request.domain.max_year+1) 
+        request.vals["year_range"] = list(range(request.domain.min_year,request.domain.max_year+1)) 
 
         
         return func(*args,**kwargs)

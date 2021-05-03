@@ -19,36 +19,36 @@ from rvservices.flickr_service import update_flickr,mirror_flickr
 
 if __name__ == "__main__":
 
-    print "Updating Instagram"
+    print("Updating Instagram")
     try:
         update_instagram()
     except Exception as ex:
-        print ex
+        print(ex)
 
-    print "Mirroring Instagram"
+    print("Mirroring Instagram")
     try:
         mirror_instagram()
     except Exception as ex:
-        print ex
+        print(ex)
     
     
-    print "Updating Flickr"
+    print("Updating Flickr")
     try:
         update_flickr()
     except Exception as ex:
-        print ex
+        print(ex)
 
-    print "Mirroring Flickr"
+    print("Mirroring Flickr")
     try:
         mirror_flickr()
     except Exception as ex:
-        print ex
+        print(ex)
 
-    print "Cleaning up domains"
+    print("Cleaning up domains")
     # this fixes the min and max years on all services
     for domain in RVDomain.objects.all():
         
-        print "doing min/max on ", domain
+        print("doing min/max on ", domain)
     
         try:
             max_year = RVItem.objects.filter(service__domain=domain).aggregate(Max('datetime_created'))["datetime_created__max"]
@@ -59,6 +59,6 @@ if __name__ == "__main__":
     
             domain.save()
         except Exception as ex:
-            print ex
+            print(ex)
             pass
             

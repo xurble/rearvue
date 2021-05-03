@@ -13,7 +13,7 @@ from rearvue.utils import page
 MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
 
 
-from models import *
+from .models import *
 
 # Create your views here.
 
