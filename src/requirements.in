@@ -1,8 +1,7 @@
-Django
+Django~=2.2.0
 mysqlclient
 Pillow
-flup
 python-dateutil
 flickrapi
-pip install git+https://git@github.com/ping/instagram_private_api.git@1.6.0
+git+https://git@github.com/ping/instagram_private_api.git@1.6.0
 requests
