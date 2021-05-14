@@ -10,7 +10,7 @@ certifi==2020.12.5
     # via requests
 chardet==4.0.0
     # via requests
-django==2.2.20
+django==2.2.23
     # via -r requirements.in
 flickrapi==2.4.0
     # via -r requirements.in
@@ -38,7 +38,7 @@ requests==2.25.1
     #   flickrapi
     #   requests-oauthlib
     #   requests-toolbelt
-six==1.15.0
+six==1.16.0
     # via
     #   flickrapi
     #   python-dateutil
