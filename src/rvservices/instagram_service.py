@@ -9,7 +9,7 @@ from rearvue import utils
 
 
 
-from instapi import Client, ClientCompatPatch
+from instagram_private_api import Client, ClientCompatPatch
 
 import requests
 
@@ -20,84 +20,63 @@ import json
 
 def update_instagram():
 
-    web_api = Client("xurble", "bobroberts")
-    import pdb; pdb.set_trace()
-    
+
     ig_services = RVService.objects.filter(type="instagram")
     
     for service in ig_services:
     
         print("Updating %s" % service)
     
+        insta = Client(service.username, service.auth_secret)
         
-        since = None
+        service.userid = insta.authenticated_user_id # just in case
+
         if service.max_update_id != "":
-            since = service.max_update_id + "_" + service.userid
-        page = 1
-        maxid = 0
-        if since:
-            url = INSTAGRAM_MEDIA_URL % (service.auth_token,25) + "&min_id=" + since
+            max_id = int(service.max_update_id)
         else:
-            url = INSTAGRAM_MEDIA_URL % (service.auth_token,25) 
+            max_id = 0    
+        
+        
+        import pdb; pdb.set_trace()
+        ret = insta.user_feed(service.userid, min_id=max_id)
+        
+        items = ret["items"]
+
+        next_max_id = ret.get('next_max_id')
+        while next_max_id:
+            ret = insta.user_feed(service.userid, max_id=next_max_id)
+            items.extend(ret.get('items', []))
+            next_max_id = ret.get('next_max_id')
+
+        for i in items:
+            if "pk" in i:
+                print(i["pk"])
+                lastphoto = i["pk"]
+                try:
+                    item = RVItem.objects.filter(service=service).filter(item_id=lastphoto)[0]
+                except:
+                    print("NEW!")
+                    item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
+                if i["caption"]:
+                    item.title = i["caption"]["text"]
+                    print(item.title.encode("utf-8"))
             
-        #print url
-        
-        r = requests.get(url,timeout=30, verify=False)
-        
-        media_list = r.json()["data"]
+                item.datetime_created = datetime.datetime.fromtimestamp(int(i["taken_at"]))
+                item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
 
-        lastphoto = ""    
-        while len(media_list):
-            print("PAGE:",page,since)
-            for i in media_list:
-                if "id" in i:
-                    print(i["id"])
-                    lastphoto = i["id"]
-                
-                
-                
-                    try:
-                        item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
-                    except:
-                        print("NEW!")
-                        item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
-                    if i["caption"]:
-                        item.title = i["caption"]["text"]
-                        print(item.title.encode("utf-8"))
-                
-                    item.datetime_created = datetime.datetime.fromtimestamp(int(i["created_time"]))
-                    item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
+                item.remote_url = "https://www.instagram.com/p/{}/".format(i["code"])
 
-                    item.remote_url = i["link"]
-
-                    item.raw_data = json.dumps(i)
-                    
-                    item.save()
+                item.raw_data = json.dumps(i)
                 
-                    this_id = int(i["id"].split("_")[0])
-                    if this_id > maxid:
-                        maxid = this_id
-                else:
-                    import pdb; pdb.set_trace()
-                    pass
-            page +=1    
-
-            print("Page received, taking a break!")
-            time.sleep(5)
-            if len(media_list) < 25:
-                #didn't get as many as we asked for so must be done
-                break
+                item.save()
                 
-            url = INSTAGRAM_MEDIA_URL % (service.auth_token,50) + "&max_id=" + lastphoto
-            if since:
-                url += "&min_id=" + since
-
-            print(url)
-            r = requests.get(url,timeout=30, verify=False)
-    
-            media_list = r.json()["data"]
-        if maxid:                
-            service.max_update_id = str(maxid)
+                
+                if lastphoto > max_id:
+                    max_id = lastphoto
+                
+            
+        if max_id:                
+            service.max_update_id = str(max_id)
             service.save() 
             
 def mirror_instagram():
@@ -107,7 +86,8 @@ def mirror_instagram():
     for item in queue:
         print(item.caption)
         data = json.loads(item.raw_data)
-        if data["type"] == "image":
+        import pdb; pdb.set_trace()
+        if data["media_type"] == 1:
             ret = requests.get(data["images"]["standard_resolution"]["url"],timeout=30, verify=False)
             ext = "jpg"
             item.media_type = 1
