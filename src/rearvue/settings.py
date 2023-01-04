@@ -41,8 +41,6 @@ FLICKR_KEY =    settings_server.FLICKR_KEY
 FLICKR_SECRET = settings_server.FLICKR_SECRET
 
 
-
-DEFAULT_DOMAIN = settings_server.DEFAULT_DOMAIN
 DEFAULT_DOMAIN_PROTOCOL = settings_server.DEFAULT_DOMAIN_PROTOCOL # http or https
 
 ALLOWED_HOSTS = settings_server.ALLOWED_HOSTS
@@ -73,7 +71,7 @@ ROOT_URLCONF = 'rearvue.urls'
 
 WSGI_APPLICATION = 'rearvue.wsgi.application'
 
-
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/

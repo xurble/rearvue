@@ -1,4 +1,4 @@
-from django.shortcuts import render_to_response,get_object_or_404
+from django.shortcuts import render ,get_object_or_404
 from django.template import RequestContext
 from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required
@@ -25,16 +25,16 @@ import rvservices.flickr_service
 
 @login_required
 @admin_page
-def admin_index(request,domain_name):
+def admin_index(request):
 
-    request.vals["services"] = RVService.objects.all()
+    request.vals["services"] = RVService.objects.filter(domain=request.domain)
 
-    return render_to_response("rvadmin/index.html",request.vals,context_instance=RequestContext(request))
+    return render(request, "rvadmin/index.html", request.vals)
 
 
 @login_required
 @admin_page
-def instagram_connect(request, domain_name, iid):
+def instagram_connect(request, iid):
 
     vals = {}
     
@@ -54,7 +54,7 @@ def instagram_connect(request, domain_name, iid):
         return HttpResponseRedirect(redirect_url)
 
     else:
-        return render_to_response("rvadmin/instagram_connect.html",vals,context_instance=RequestContext(request))
+        return render(request,"rvadmin/instagram_connect.html",vals)
     
     
 @login_required
@@ -87,11 +87,11 @@ def instagram_return(request):
 
     vals = {}
     
-    return render_to_response("rvadmin/index.html",vals,context_instance=RequestContext(request))
+    return render(request,"rvadmin/index.html",vals)
     
 @login_required
 @admin_page
-def flickr_connect(request, domain_name, iid):
+def flickr_connect(request, iid):
 
     vals = {}
     
@@ -124,7 +124,7 @@ def flickr_connect(request, domain_name, iid):
         return HttpResponseRedirect(auth_url)
 
     else:
-        return render_to_response("rvadmin/instagram_connect.html",vals,context_instance=RequestContext(request))
+        return render(request, "rvadmin/flickr_connect.html", vals)
 
 @login_required
 def flickr_return(request):
@@ -143,4 +143,4 @@ def flickr_return(request):
 
     vals = {}
     
-    return render_to_response("rvadmin/index.html",vals,context_instance=RequestContext(request))
+    return render(request, "rvadmin/index.html", vals)

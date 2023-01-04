@@ -28,18 +28,10 @@ def page(func):
         
         domain = request.META["HTTP_HOST"]
         
-        if domain.endswith(settings.DEFAULT_DOMAIN):
-            
-            domainparts = domain.split(".")
-            try:
-                request.domain = RVDomain.objects.get(name=domainparts[0])
-            except:
-                return HttpResponseNotFound()
-        else:
-            try:
-                request.domain = RVDomain.objects.get(alt_domain=domain)
-            except:
-                return HttpResponseNotFound()
+        try:
+            request.domain = RVDomain.objects.get(name=domain)
+        except:
+            return HttpResponseNotFound()
 
         request.vals = {}
         request.vals["domain"] = request.domain
@@ -56,23 +48,23 @@ def admin_page(func):
     def _page(*args,**kwargs):
     
         request = args[0]
-        
+
         domain = request.META["HTTP_HOST"]
         
-        if domain != settings.DEFAULT_DOMAIN:
-        
+        try:
+            request.domain = RVDomain.objects.get(name=domain)
+        except:
             return HttpResponseNotFound()
 
-        else:
         
-            request.domain = RVDomain.objects.get(name=kwargs["domain_name"])
-            
-            if request.domain.owner != request.user:
-                return HttpResponseForbidden()
+        if not request.user.is_superuser:
+            return HttpResponseForbidden()
 
-            request.vals = {"domain":request.domain}
-        
-            return func(*args,**kwargs)
+
+        request.vals = {}
+        request.vals["domain"] = request.domain
+    
+        return func(*args,**kwargs)
     
     return _page  
     

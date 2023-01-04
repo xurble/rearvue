@@ -10,7 +10,7 @@
             <div class="col-sm-12">
         
                 <h2>Services</h2>
-                {% if not s.count %}
+                {% if not services.count %}
                     <p>None yet</p>
                 {% endif %}
                 <ul>
@@ -22,10 +22,10 @@
                 <h2>Add</h2>
                 <ul>
                     <li>
-                        <a href="{% url "instagram_connect" domain_name=domain.name iid="new" %}">Add Instagram Account</a>
+                        <a href="{% url 'instagram_connect' iid='new' %}">Add Instagram Account</a>
                     </li>
                     <li>
-                        <a href="{% url "flickr_connect" domain_name=domain.name iid="new" %}">Add Flickr Account</a>
+                        <a href="{% url 'flickr_connect' iid='new' %}">Add Flickr Account</a>
                     </li>
                 </ul>
 

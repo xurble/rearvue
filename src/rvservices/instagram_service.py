@@ -21,7 +21,7 @@ import json
 def update_instagram():
 
 
-    ig_services = RVService.objects.filter(type="instagram")
+    ig_services = RVService.objects.filter(type="instagram").filter(live=True)
     
     for service in ig_services:
     
@@ -81,10 +81,10 @@ def update_instagram():
             
 def mirror_instagram():
     
-    queue = RVItem.objects.filter(mirror_state=0).filter(service__type="instagram")[:50]
+    queue = RVItem.objects.filter(mirror_state=0).filter(service__type="instagram").filter(service__live=True)[:50]
     
     for item in queue:
-        try:
+        try:    
             print(item.caption)
             data = json.loads(item.raw_data)
 

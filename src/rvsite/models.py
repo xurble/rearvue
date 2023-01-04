@@ -35,6 +35,7 @@ class RVService(models.Model):
     max_update_id  = models.CharField(max_length=256,blank=True,default='')
     auth_token     = models.CharField(max_length=256,blank=True,default='')
     auth_secret    = models.CharField(max_length=256,blank=True,default='')
+    live           = models.BooleanField(default=True)
     
     
     
