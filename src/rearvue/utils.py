@@ -3,6 +3,7 @@ from django.conf import settings
 from django.http import HttpResponseNotFound,HttpResponseForbidden
 
 import os
+import random
 
 from rvsite.models import RVDomain
 
@@ -74,6 +75,14 @@ def admin_page(func):
             return func(*args,**kwargs)
     
     return _page  
+    
+    
+def sample_of(source_list, requirement): 
+
+    if requirement > len(source_list):
+        requirement = len(source_list)
+
+    return random.sample(source_list, requirement)
         
         
 	

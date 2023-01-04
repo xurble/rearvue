@@ -9,6 +9,7 @@ import datetime
 import calendar
 
 from rearvue.utils import page
+from rearvue.utils import sample_of
 
 MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
 
@@ -22,27 +23,21 @@ def index(request):
 
     item_list = list(RVItem.objects.filter(Q(domain=request.domain) & Q(public=True)).order_by("-datetime_created")[:12])
     
-    request.vals["recent"] = random.sample(item_list,6)
-    
+    request.vals["recent"] = sample_of(item_list, 6)
     
     last_year = datetime.datetime.now() - relativedelta(years=1)
     
     item_list  = list(RVItem.objects.filter(Q(domain=request.domain) & Q(datetime_created__lt=last_year) & Q(public=True) & Q(mirror_state__gte=1)).order_by("-datetime_created")[:12])
     item_list += list(RVItem.objects.filter(Q(domain=request.domain) & Q(datetime_created__gt=last_year) & Q(public=True) & Q(mirror_state__gte=1)).order_by("datetime_created")[:6])
     
-    request.vals["last_year"] = random.sample(item_list,6)
+    request.vals["last_year"] = sample_of(item_list, 6)
     
-
-
     five_years = datetime.datetime.now() - relativedelta(years=5)
     
     item_list  = list(RVItem.objects.filter(Q(domain=request.domain) & Q(datetime_created__lt=five_years) & Q(public=True) & Q(mirror_state__gte=1)).order_by("-datetime_created")[:12])
     item_list += list(RVItem.objects.filter(Q(domain=request.domain) & Q(datetime_created__gt=five_years) & Q(public=True) & Q(mirror_state__gte=1)).order_by("datetime_created")[:6])
     
-    request.vals["five_years"] = random.sample(item_list,6)
-
-    
-      
+    request.vals["five_years"] = sample_of(item_list, 6)
 
     return render(request, "rvsite/index.html",request.vals)
     

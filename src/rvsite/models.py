@@ -61,34 +61,59 @@ class RVItem(models.Model):
     
     public           = models.BooleanField(default=True)
 
+    raw_data         = models.TextField(blank=True,default='')
+
+    mirror_state     = models.IntegerField(default=0)
+    
+    @property
+    def thumbnail(self):
+        try:
+            return self.rvmedia_set.first().thumbnail
+        except:
+            return ""
+        
+    @property
+    def media_type(self):
+        return self.rvmedia_set.first().media_type
+
+    @property
+    def primary_media(self):
+        return self.rvmedia_set.first().primary_media
+        
+    @property
+    def original_media(self):
+        return self.rvmedia_set.first().original_media
+
+    
+    def __str__(self):
+        return "{title} on {service}".format(title=self.title,service=self.service.name)
+        
+    
+        
+        
+class RVMedia(models.Model):
+    
+    item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
+    
     original_media   = models.CharField(max_length=256,blank=True,default='')
 
     primary_media    = models.CharField(max_length=256,blank=True,default='')
     media_type       = models.IntegerField(default=0,choices=((0,"None"),(1,"Image"),(2,"Video")))
     thumbnail        = models.CharField(max_length=256,blank=True,default='')
-    
-
-    raw_data         = models.TextField(blank=True,default='')
-
-    mirror_state     = models.IntegerField(default=0)
-    
-    def __str__(self):
-        return "{title} on {service}".format(title=self.title,service=self.service.name)
-    
 
 
     def make_original_path(self,file_type):
     
-        self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (self.domain.name,self.date_created.year,self.date_created.month,self.date_created.day,self.service.type,self.id,file_type)
+        self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.original_media
         
     def make_primary_path(self,file_type):
     
-        self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (self.domain.name,self.date_created.year,self.date_created.month,self.date_created.day,self.service.type,self.id,file_type)
+        self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.primary_media
 
     def make_thumbnail_path(self,file_type):
     
-        self.thumbnail =  "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (self.domain.name,self.date_created.year,self.date_created.month,self.date_created.day,self.service.type,self.id,file_type)
+        self.thumbnail =  "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.thumbnail 
 

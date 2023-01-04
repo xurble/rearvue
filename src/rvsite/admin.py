@@ -5,3 +5,4 @@ from .models import *
 admin.site.register(RVDomain)
 admin.site.register(RVService)
 admin.site.register(RVItem)
+admin.site.register(RVMedia)

@@ -13,9 +13,13 @@ import os
 
 from . import settings_server
 
+
+
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 print(BASE_DIR)
+
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
@@ -28,11 +32,14 @@ DEBUG = settings_server.DEBUG
 
 DATA_STORE = settings_server.DATA_STORE
 
+DATABASES = settings_server.DATABASES
+
+# for the sqlite people :)
+DATABASES["default"]["NAME"] = DATABASES["default"]["NAME"].replace("__BASE_DIR__", BASE_DIR)
+
 FLICKR_KEY =    settings_server.FLICKR_KEY
 FLICKR_SECRET = settings_server.FLICKR_SECRET
 
-INSTAGRAM_CLENT_ID      = settings_server.INSTAGRAM_CLENT_ID
-INSTAGRAM_CLIENT_SECRET = settings_server.INSTAGRAM_CLIENT_SECRET
 
 
 DEFAULT_DOMAIN = settings_server.DEFAULT_DOMAIN
@@ -67,7 +74,6 @@ ROOT_URLCONF = 'rearvue.urls'
 WSGI_APPLICATION = 'rearvue.wsgi.application'
 
 
-DATABASES = settings_server.DATABASES
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
