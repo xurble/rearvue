@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 
 
 # from instagram.client import InstagramAPI
-# from flickr import FlickrAPI
+from flickrapi import FlickrAPI
 
 import datetime
 import requests
@@ -103,44 +103,57 @@ def flickr_connect(request, iid):
         else:
             svc = get_object_or_404(RVService,id=int(iid))
 
-        redirect_uri = '{protocol}://{domain}/rvadmin/flickr_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=settings.DEFAULT_DOMAIN, service= svc.id) 
+        if request.domain.alt_domain != '' :
+            redirect_uri = '{domain}/rvadmin/flickr_return/?svc={service}'.format(domain=request.domain.alt_domain, service= svc.id) 
+        else:
+            redirect_uri = '{protocol}://{domain}/rvadmin/flickr_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=request.domain.name, service= svc.id) 
     
-        f = FlickrAPI(api_key=settings.FLICKR_KEY, api_secret=settings.FLICKR_SECRET, callback_url=redirect_uri)
+        f = FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=None, store_token=False)
+                       
+        f.get_request_token(oauth_callback=redirect_uri)
 
-
-        auth_props = f.get_authentication_tokens()
-        auth_url = auth_props['auth_url']
-
-        #Store this token in a session or something for later use in the next step.
-        oauth_token = auth_props['oauth_token']
-        oauth_token_secret = auth_props['oauth_token_secret']
+        print('Redirecting user to Flickr to get frob')
+        url = f.auth_url(perms='read')
         
-        svc.auth_token = oauth_token
-        svc.auth_secret = oauth_token_secret
+        svc.auth_token = f.flickr_oauth.resource_owner_key
+        svc.auth_secret = f.flickr_oauth.resource_owner_secret
+        
         svc.save()
-
-        print('Connect with Flickr via: %s' % auth_url)
+        print(f.flickr_oauth.requested_permissions)
+    
+        return HttpResponseRedirect(url)
         
-        return HttpResponseRedirect(auth_url)
 
     else:
         return render(request, "rvadmin/flickr_connect.html", vals)
 
-@login_required
+@admin_page
 def flickr_return(request):
 
     svc_id = request.GET.get("svc","0")
     
-    service = get_object_or_404(RVService,id=int(svc_id))
+    svc = get_object_or_404(RVService,id=int(svc_id))
 
-    f = FlickrAPI(api_key=settings.FLICKR_KEY, api_secret=settings.FLICKR_SECRET, oauth_token=service.auth_token, oauth_token_secret=service.auth_secret)
+    token = request.GET["oauth_token"]
     
-    authorized_tokens = f.get_auth_tokens(request.GET["oauth_verifier"])
+    f = FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=None, store_token=False)
 
-    service.auth_token  = authorized_tokens['oauth_token']
-    service.auth_secret = authorized_tokens['oauth_token_secret']    
-    service.save()
+    f.flickr_oauth.resource_owner_key = svc.auth_token
+    f.flickr_oauth.resource_owner_secret = svc.auth_secret
+    f.flickr_oauth.requested_permissions = "read"
+    verifier = request.GET['oauth_verifier']
 
-    vals = {}
+    print('Getting resource key')
+    print ('Verifier is %s' % verifier)
+    f.get_access_token(verifier)
     
-    return render(request, "rvadmin/index.html", vals)
+    token = f.token_cache.token
+    
+    svc.username = token.username
+    svc.userid = token.user_nsid
+    svc.auth_token = token.token    
+    svc.auth_secret = token.token_secret
+    svc.save()
+    
+    
+    return render(request, "rvadmin/index.html", request.vals)

@@ -41,9 +41,6 @@ body {
     font-family: Helvetica;
 }
 
-.container {
-    //background-color: #EEE;
-}
 
 a, a:visited, a:hover {
     color:#333;
@@ -149,7 +146,8 @@ h2.head {
 
 h3 {
     font-size:16px;
-    letter-spacing: 4px;
+    letter-spacing: 2px;
+    line-height: 1.5;
     text-transform: uppercase;
     padding: 25px 0px 3px 0px;
     margin:0;
@@ -163,7 +161,9 @@ h3 {
     padding: 3px 0px 0px 0px;
 }
 
-
+h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+    border-bottom: none !important;
+}
 
 img.poster_image {
     max-width: 100%;
@@ -205,9 +205,16 @@ table.month a:hover {
     background-color: #333;
 }
 
+ul.post-item-details {
+    list-style-type: none;
+    margin-top: 10px;
+}
+ul.post-item-details li {
+    display: inline-block;
+    margin-left:10px;
+}
 
 ul.item-details {
     float:right;
-
-
+}
     

@@ -5,6 +5,9 @@ from django.http import HttpResponseNotFound,HttpResponseForbidden
 import os
 import random
 
+MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
+
+
 from rvsite.models import RVDomain
 
 def make_full_path(local_path):
@@ -28,10 +31,16 @@ def page(func):
         
         domain = request.META["HTTP_HOST"]
         
+        print ("Cnnection to: " + domain)
+        
         try:
             request.domain = RVDomain.objects.get(name=domain)
         except:
-            return HttpResponseNotFound()
+            try:
+                request.domain = RVDomain.objects.filter(alt_domain__icontains=domain)[0]
+            except Exception as ex:
+                print(ex)
+                return HttpResponseNotFound()
 
         request.vals = {}
         request.vals["domain"] = request.domain
@@ -54,7 +63,11 @@ def admin_page(func):
         try:
             request.domain = RVDomain.objects.get(name=domain)
         except:
-            return HttpResponseNotFound()
+            try:
+                request.domain = RVDomain.objects.filter(alt_domain__icontains=domain)[0]
+            except Exception as ex:
+                print(ex)
+                return HttpResponseNotFound()
 
         
         if not request.user.is_superuser:

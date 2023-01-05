@@ -10,8 +10,8 @@ import calendar
 
 from rearvue.utils import page
 from rearvue.utils import sample_of
+from rearvue.utils import MONTH_LIST
 
-MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
 
 
 from .models import *
@@ -20,6 +20,15 @@ from .models import *
 
 @page
 def index(request):
+
+    request.vals["recent"] = list(RVItem.objects.filter(Q(domain=request.domain) & Q(public=True)).order_by("-datetime_created")[:12])
+
+    return render(request, "rvsite/index.html",request.vals)
+
+    
+
+@page
+def summary(request):
 
     item_list = list(RVItem.objects.filter(Q(domain=request.domain) & Q(public=True)).order_by("-datetime_created")[:12])
     
@@ -39,7 +48,7 @@ def index(request):
     
     request.vals["five_years"] = sample_of(item_list, 6)
 
-    return render(request, "rvsite/index.html",request.vals)
+    return render(request, "rvsite/summary.html",request.vals)
     
 @page
 def show_year(request, year):
@@ -82,24 +91,12 @@ def show_month(request, year, month):
                 
     
     items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)& Q(public=True)).order_by("date_created"))
-
-    for item in items:
-        for week in thecal:
-            for day in week:
-                if day[0] == item.date_created.day:
-                    day[1] = day[1] + 1
-                    
-    request.vals["calendar"] = thecal
-
-    if len(items) > 18:
-        request.vals["items"] = random.sample(items,18)
-    else:
-        request.vals["items"] = random.sample(items,len(items))
         
     request.vals["month_name"] = MONTH_LIST[int(month)]
     
     request.vals["month"] = month
     request.vals["year"]  = year
+    request.vals["items"] = items
         
         
     return render(request, "rvsite/month.html",request.vals)
@@ -141,7 +138,7 @@ def show_item(request, year, month, day, iid):
     request.vals["day"] = day
 
     request.vals["item"] = get_object_or_404(RVItem,id=int(iid))  
-    
+
     request.vals["other_items"] = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).exclude(date_created__year=int(year))
   
     

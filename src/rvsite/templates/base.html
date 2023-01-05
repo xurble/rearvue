@@ -27,25 +27,38 @@
         <div class="container">
 
             <div class="row">
-            
                 <div class="col-xs-12">
                     <h1 class="link"><a href="/">{{domain.display_name}}</a></h1>
+                    <p>{{ domain.blurb }}</p>
                 </div>
             </div>
 
+            <div class="row">
 
-            {% block content %}
+            
+                <div class="col-sm-8">
+                    {% block content %}
     
-            {% endblock %}
+                    {% endblock %}
+                </div>
+                <div class="col-sm-4">
+                    <h2>Sidebar</h2>
+
+                    <ul class="link">
+                        {% for y in year_range %}
+                            <li><a href="{% url "show_year" year=y%}">{{y}}</a></li>
+                        {% endfor %}
+                    </ul>
+
+                </div>
+            
+            </div>
+            
 
         </div>
 
-        <footer>
-            <ul class="link">
-                {% for y in year_range %}
-                    <li><a href="{% url "show_year" year=y%}">{{y}}</a></li>
-                {% endfor %}
-            </ul>
+        <footer class="link">
+            A collection of stuff by {{ domain.owner.get_full_name }}.  Powered by <a href="https://github.com/xurble/rearvue">RearVue</a>.
         </footer>
 
 

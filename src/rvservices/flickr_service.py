@@ -15,22 +15,23 @@ import requests
 from django.conf import settings
 
 from PIL import Image
-
-
- 
  
 def update_flickr():
 
     f_services = RVService.objects.filter(type="flickr")
     
     for service in f_services:
-    
+
         print("Updating %s" % service)
         
-        
+        """
+        def __init__(self, token, token_secret, access_level,
+                     fullname=u'', username=u'', user_nsid=u''):
+        """
+
+        token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
     
-        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, format='parsed-json')
-        
+        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
 
         if service.userid == "":
             try:
@@ -41,10 +42,6 @@ def update_flickr():
             except Exception as ex:        
                 print(ex)
                 return
-        
-        
-        
-         
         
         
         page = 0
@@ -93,7 +90,7 @@ def update_flickr():
                 item.datetime_created = taken_datetime
                 item.date_created     = taken_datetime.date()
                 
-                item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (service.username,i["id"])
+                item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (service.username, i["id"])
 
                 item.raw_data = json.dumps(i)
                 
@@ -106,78 +103,92 @@ def update_flickr():
 
 def mirror_flickr():
 
-    f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, format='parsed-json')
+    f_services = RVService.objects.filter(type="flickr")
     
-    queue = RVItem.objects.filter(mirror_state=0).filter(service__type="flickr")[:50]
+    for service in f_services:
+
+        token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
+        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
     
-    for item in queue:
-        print(item.title.encode("utf-8"))
-        data = json.loads(item.raw_data)
+        queue = RVItem.objects.filter(mirror_state=0).filter(service=service)#[:50]
 
-        if data["media"] == "photo":
-            ret = requests.get(data["url_o"],timeout=30, verify=False)
-            ext = "jpg"
-            item.media_type = 1
-        else:
-            size_list = f.photos.getSizes(photo_id=item.item_id)["sizes"]["size"]  
+        for item in queue:
+            print(item.title.encode("utf-8"))
+            data = json.loads(item.raw_data)
 
-            ret = None
-            for size in size_list:
-                if size["label"] == "Video Original":
-                    import pdb; pdb.set_trace()
-                    ret = requests.get(size["source"],timeout=30, verify=False)
-                    item.media_type = 2
-                    ext = "mp4" # <------ need to go get that video        
+            rvm = RVMedia()
+            rvm.item = item
+            rvm.save()
+            
+            print(item.date_created)
+            
 
-        if ret.ok:
-            output_path = item.make_original_path(ext)
+            if data["media"] == "photo":
+                ret = requests.get(data["url_o"],timeout=30, verify=False)
+                ext = data["url_o"].split(".")[-1]
+                rvm.media_type = 1
+            else:
+                size_list = f.photos.getSizes(photo_id=item.item_id)["sizes"]["size"]  
+
+                ret = None
+                for size in size_list:
+                    if size["label"] == "Video Original":
+                        ret = requests.get(size["source"],timeout=30, verify=False)
+                        rvm.media_type = 2
+                        ext = "mp4" # <------ need to go get that video        
+
+            if ret.ok:
+                output_path = rvm.make_original_path(ext)
         
-            target_path = utils.make_full_path(output_path)
+                target_path = utils.make_full_path(output_path)
     
-            utils.make_folder(target_path)
+                utils.make_folder(target_path)
 
-            fh = open(target_path,"wb")
-            fh.write(ret.content)
-            fh.close()
+                fh = open(target_path,"wb")
+                fh.write(ret.content)
+                fh.close()
             
-        sz = "url_l"
-        if sz not in data:
-            sz = "url_m"
-        if sz not in data:
-            sz = "url_o"
+            sz = "url_l"
+            if sz not in data:
+                sz = "url_m"
+            if sz not in data:
+                sz = "url_o"
         
-        ret2 = requests.get(data[sz],timeout=30, verify=False)
+            ret2 = requests.get(data[sz],timeout=30, verify=False)
 
-        if ret2.ok:
-            output_path = item.make_primary_path("jpg")
+            ext = data[sz].split(".")[-1]
+
+            if ret2.ok:
+                output_path = rvm.make_primary_path(ext)
                     
-            target_path = utils.make_full_path(output_path)
+                target_path = utils.make_full_path(output_path)
     
-            utils.make_folder(target_path) # <- no way this doesn't exist?
+                utils.make_folder(target_path) # <- no way this doesn't exist?
     
-            fh = open(target_path,"wb")
-            fh.write(ret2.content)
-            fh.close()
+                fh = open(target_path,"wb")
+                fh.write(ret2.content)
+                fh.close()
             
-            img = Image.open(target_path)
+                img = Image.open(target_path)
             
-            ratio = float(img.size[0]) / float(img.size[1])
+                ratio = float(img.size[0]) / float(img.size[1])
             
-            w = 300
-            h = int(300 / ratio)
+                w = 300
+                h = int(300 / ratio)
             
-            print("resizing thumbnail" , w, h)
+                print("resizing thumbnail" , w, h)
             
             
-            img = img.resize((w,h),Image.BICUBIC)
+                img = img.resize((w,h),Image.BICUBIC)
 
-            output_path = item.make_thumbnail_path("jpg")
+                output_path = rvm.make_thumbnail_path(ext)
                     
-            target_path = utils.make_full_path(output_path)
+                target_path = utils.make_full_path(output_path)
 
-            img.save(target_path)
+                img.save(target_path)
     
-            item.mirror_state = 1
-            item.save()
+                rvm.save()
+                item.mirror_state = 1
+                item.save()
                 
                 

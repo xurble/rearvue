@@ -22,17 +22,18 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 if __name__ == "__main__":
 
-    print("Updating Instagram")
-    try:
-        update_instagram()
-    except Exception as ex:
-        print(ex)
+    if False:
+        print("Updating Instagram")
+        try:
+            update_instagram()
+        except Exception as ex:
+            print(ex)
 
-    print("Mirroring Instagram")
-    try:
-        mirror_instagram()
-    except Exception as ex:
-        print(ex)
+        print("Mirroring Instagram")
+        try:
+            mirror_instagram()
+        except Exception as ex:
+            print(ex)
     
     
     print("Updating Flickr")

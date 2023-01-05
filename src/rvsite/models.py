@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 # Create your models here.
 import datetime
 
-
 class RVDomain(models.Model):
     name       = models.CharField(max_length=32,unique=True)
     alt_domain = models.CharField(max_length=128,blank=True,default='',db_index=True)
@@ -41,7 +40,7 @@ class RVService(models.Model):
     
     def __str__(self):
         
-        return "%s (%s)" % (self.name,self.type)
+        return "%s (%s) %s" % (self.name, self.type, self.username) 
 
 
 class RVItem(models.Model):
@@ -66,6 +65,11 @@ class RVItem(models.Model):
 
     mirror_state     = models.IntegerField(default=0)
     
+    @property
+    def created_month_name(self):
+        from rearvue.utils import MONTH_LIST
+        return MONTH_LIST[int(self.date_created.month)]
+            
     @property
     def thumbnail(self):
         try:
