@@ -110,7 +110,7 @@ def mirror_flickr():
         token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
         f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
     
-        queue = RVItem.objects.filter(mirror_state=0).filter(service=service)#[:50]
+        queue = RVItem.objects.filter(mirror_state=0).filter(service=service)[:50]
 
         for item in queue:
             print(item.title.encode("utf-8"))
