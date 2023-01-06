@@ -6,7 +6,7 @@
                 {% if item.media_type == 1 %}
                     <img src="/{{item.primary_media}}" alt="{{item.title}}" style="max-width:100%">
                 {% else %}
-                    <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="{{item.thumbnail}}" ></video>
+                    <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="/{{item.thumbnail}}" ></video>
                 {% endif %}    
 
 
