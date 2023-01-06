@@ -36,11 +36,11 @@ if __name__ == "__main__":
             print(ex)
     
     
-    print("Updating Flickr")
-    try:
-        update_flickr()
-    except Exception as ex:
-        print(ex)
+    #print("Updating Flickr")
+    #try:
+    #    update_flickr()
+    #except Exception as ex:
+    #    print(ex)
 
     print("Mirroring Flickr")
     try:
