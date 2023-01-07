@@ -40,6 +40,10 @@ DATABASES["default"]["NAME"] = DATABASES["default"]["NAME"].replace("__BASE_DIR_
 FLICKR_KEY =    settings_server.FLICKR_KEY
 FLICKR_SECRET = settings_server.FLICKR_SECRET
 
+INSTAGRAM_KEY =    settings_server.INSTAGRAM_KEY
+INSTAGRAM_SECRET = settings_server.INSTAGRAM_SECRET
+
+
 
 DEFAULT_DOMAIN_PROTOCOL = settings_server.DEFAULT_DOMAIN_PROTOCOL # http or https
 
@@ -97,7 +101,9 @@ MEDIA_URL = '/media/'
 STATIC_ROOT = settings_server.STATIC_ROOT
 MEDIA_ROOT = settings_server.MEDIA_ROOT
 
-# STATICFILES_DIRS = settings_server.STATICFILES_DIRS
+print(MEDIA_ROOT)
+
+
 
 
 

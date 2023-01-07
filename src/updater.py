@@ -27,11 +27,11 @@ if __name__ == "__main__":
     except Exception as ex:
         print(ex)
 
-    print("Mirroring Instagram")
-    try:
-        mirror_instagram()
-    except Exception as ex:
-        print(ex)
+    #print("Mirroring Instagram")
+    #try:
+    #    mirror_instagram()
+    #except Exception as ex:
+    #    print(ex)
     
     
     print("Updating Flickr")

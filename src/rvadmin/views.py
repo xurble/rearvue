@@ -4,7 +4,7 @@ from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 
-# from instagram.client import InstagramAPI
+from instagram_basic_display.InstagramBasicDisplay import InstagramBasicDisplay
 from flickrapi import FlickrAPI
 
 import datetime
@@ -58,18 +58,24 @@ def instagram_connect(request, iid):
     
     if request.method == "POST":
 
+
         if iid == "new":
-            svc = RVService(name='Instagram Service',type="Instagram",domain=request.domain)
+            svc = RVService(name='Instagram Service',type="instagram",domain=request.domain)
             svc.save()
         else:
             svc = get_object_or_404(RVService,id=int(iid))
 
-        redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=settings.DEFAULT_DOMAIN, service= svc.id) 
-    
-        api = InstagramAPI(client_id=settings.INSTAGRAM_CLENT_ID, client_secret=settings.INSTAGRAM_CLIENT_SECRET, redirect_uri=redirect_uri)
-        redirect_url = api.get_authorize_login_url(scope = ["basic"])
-        
-        return HttpResponseRedirect(redirect_url)
+
+        #redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=request.domain.name, service= svc.id)
+        redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
+
+
+        instagram_basic_display = InstagramBasicDisplay(
+            app_id=settings.INSTAGRAM_KEY, 
+            app_secret=settings.INSTAGRAM_SECRET,
+            redirect_url=redirect_uri)
+
+        return HttpResponseRedirect(instagram_basic_display.get_login_url())
 
     else:
         return render(request,"rvadmin/instagram_connect.html",vals)
@@ -79,25 +85,31 @@ def instagram_connect(request, iid):
 def instagram_return(request):
 
     code = request.GET.get("code","")
-    svc_id = request.GET.get("svc","0")
     
-    service = get_object_or_404(RVService,id=int(svc_id))
+    service = RVService.objects.filter(type="instagram").first()
     
-    post_vals = {
-        "client_id" : settings.INSTAGRAM_CLENT_ID,
-        "client_secret" : settings.INSTAGRAM_CLIENT_SECRET,
-        "grant_type" : "authorization_code",
-        "redirect_uri": '{protocol}://{domain}/rvadmin/instagram_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=settings.DEFAULT_DOMAIN, service= svc_id) ,
-        "code": code
-    }
+    redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
+
+    instagram_basic_display = InstagramBasicDisplay(
+            app_id=settings.INSTAGRAM_KEY, 
+            app_secret=settings.INSTAGRAM_SECRET,
+            redirect_url=redirect_uri)
+            
+    # Get the short lived access token (valid for 1 hour)
+    short_lived_token = instagram_basic_display.get_o_auth_token(code)
+
+    # Exchange this token for a long lived token (valid for 60 days)
+    long_lived_token = instagram_basic_display.get_long_lived_token(short_lived_token.get('access_token'))
+
+    token = long_lived_token["access_token"]
     
-    ret = requests.post("https://api.instagram.com/oauth/access_token", post_vals) 
-    ret_data = json.loads(ret.content)
+    instagram_basic_display.set_access_token(token)    
     
-    service.username    = ret_data["user"]["username"]
-    service.userid      = ret_data["user"]["id"]
-    service.profile_pic = ret_data["user"]["profile_picture"]
-    service.auth_token  = ret_data["access_token"]
+    profile = instagram_basic_display.get_user_profile()    
+    
+    service.username    = profile["username"]
+    service.userid      = profile["id"]
+    service.auth_token  = token
     
     service.save() 
     
@@ -105,7 +117,7 @@ def instagram_return(request):
 
     vals = {}
     
-    return render(request,"rvadmin/index.html",vals)
+    return HttpResponseRedirect("/rvadmin/")  #todo return reverse
     
 @login_required
 @admin_page
@@ -174,4 +186,4 @@ def flickr_return(request):
     svc.save()
     
     
-    return render(request, "rvadmin/index.html", request.vals)
+    return HttpResponseRedirect("/rvadmin/")  #todo return reverse

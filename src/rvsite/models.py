@@ -93,6 +93,16 @@ class RVItem(models.Model):
     def __str__(self):
         return "{title} on {service}".format(title=self.title,service=self.service.name)
         
+        
+    @property
+    def media_list(self):
+        items = list(self.rvmedia_set.all())
+        idx = 0
+        for i in items:
+            i.idx = idx
+            idx += 1
+        return items 
+    
     
         
         
