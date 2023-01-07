@@ -16,7 +16,7 @@
                 {% if i.media_type == 1 %}
                     <a href="{% url "show_item" year=year month=month day=day iid=i.id %}"><img src="/{{i.primary_media}}" alt="{{i.title}}" style="max-width:100%"></a>
                 {% else %}
-                    <video src="/{{i.original_media}}" alt="{{i.title}}" style="max-width:100%" controls poster="{{i.thumbnail}}" ></video><br>
+                    <video src="/{{i.original_media}}" alt="{{i.title}}" style="max-width:100%" controls poster="/{{i.thumbnail}}" ></video><br>
                 {% endif %}
                 {% if not i.title %}
                     <a href="{% url "show_item" year=year month=month day=day iid=i.id %}">→</a>

@@ -130,7 +130,6 @@ def show_day(request, year, month,day):
 @page
 def show_item(request, year, month, day, iid):
 
-
     request.vals["month_name"] = MONTH_LIST[int(month)]
     
     request.vals["month"] = month

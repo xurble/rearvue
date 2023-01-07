@@ -7,16 +7,60 @@ import os
 from rvsite.models import *
 from rearvue import utils
 
-
-
 from instagram_private_api import Client, ClientCompatPatch
 
 import requests
 
-# We use the client for the auth, but here we just freestyle it because we want raw JSON
-INSTAGRAM_MEDIA_URL = "https://api.instagram.com/v1/users/self/media/recent.json?access_token=%s&count=%d"
+import youtube_dl
+
+
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 
 import json
+
+
+def fix_instagram_item(itemid):
+
+    itemid = int(itemid)
+    
+    dbitem = RVItem.objects.get(id=itemid)
+    
+    if dbitem.service.type != "instagram":
+        return (False, "Not an instagram item")
+        
+    data = json.loads(dbitem.raw_data)    
+    post_id = data["pk"]
+
+    insta = Client(dbitem.service.username, dbitem.service.auth_secret)
+
+    ret = insta.user_feed(dbitem.service.userid)
+    
+    for i in ret["items"]:
+
+        if i["pk"] == post_id:
+            if i["caption"]:
+                dbitem.title = i["caption"]["text"]
+            else:
+                dbitem["caption"] = ""
+
+            dbitem.datetime_created = datetime.datetime.fromtimestamp(int(i["taken_at"]))
+            dbitem.date_created     = datetime.date(year=dbitem.datetime_created.year,month=dbitem.datetime_created.month,day=dbitem.datetime_created.day)
+
+            dbitem.remote_url = "https://www.instagram.com/p/{}/".format(i["code"])
+
+            dbitem.raw_data = json.dumps(i)
+    
+            dbitem.save()
+    
+            mirror_instagram(specific_item=dbitem)
+    
+            return (True, "Yo!")
+        
+    return (False, "Couldn't find the post.") 
+        
+
 
 def update_instagram():
 
@@ -35,8 +79,6 @@ def update_instagram():
             max_id = int(service.max_update_id)
         else:
             max_id = 0    
-        
-        
         
         ret = insta.user_feed(service.userid, min_id=max_id)
         
@@ -79,14 +121,22 @@ def update_instagram():
             service.max_update_id = str(max_id)
             service.save() 
             
-def mirror_instagram():
+            
+            
+def mirror_instagram(specific_item=None):
     
-    queue = RVItem.objects.filter(mirror_state=0).filter(service__type="instagram").filter(service__live=True)[:50]
+    if specific_item is not None:
+        queue = [specific_item]
+    else:
+        queue = RVItem.objects.filter(mirror_state=0).filter(service__type="instagram").filter(service__live=True)[:50]
     
     for item in queue:
         try:    
             print(item.caption)
             data = json.loads(item.raw_data)
+            
+            for m in item.rvmedia_set.all():
+                m.delete()
 
             if "carousel_media_count" not in data:
                 data["carousel_media"] = [data,]
@@ -117,10 +167,9 @@ def mirror_instagram():
                         ext = "jpg"
                         rvm.media_type = 1
                     else:
-                        import pdb; pdb.set_trace()
                         
                         ext = "mp4"
-                        ret = requests.get(dl_media["url"],timeout=30, verify=False)
+                        ret = requests.get(data["video_versions"][0]["url"],timeout=30, verify=False)
                         rvm.media_type = 2
         
                     if ret.ok:

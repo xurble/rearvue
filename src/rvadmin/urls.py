@@ -13,4 +13,8 @@ urlpatterns = [
 
     url(r'^$', admin_index, name='admin_index'),
 
+    
+    url(r'^fix_item/(?P<iid>.*)/$', fix_item, name='fix_item'),
+
+
 ]

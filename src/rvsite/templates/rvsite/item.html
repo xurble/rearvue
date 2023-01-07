@@ -3,6 +3,11 @@
 
 {% block content %}
 
+    {% if user.is_superuser %}
+        <div class="rvadmin">
+            <a href="{% url 'fix_item' iid=item.id %}">Fix</a>
+        </div>
+    {% endif %}
     
     {% include "rvsite/item_detail.html" with item=item %}
 
@@ -20,6 +25,7 @@
         {% endfor %}
         </div>
     {% endif %}
+    
 
 
 

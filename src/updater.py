@@ -17,7 +17,6 @@ from rvservices.instagram_service import update_instagram,mirror_instagram
 from rvservices.flickr_service import update_flickr,mirror_flickr
 
 import ssl
-
 ssl._create_default_https_context = ssl._create_unverified_context
 
 if __name__ == "__main__":

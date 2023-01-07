@@ -2,7 +2,7 @@ from django.shortcuts import render ,get_object_or_404
 from django.template import RequestContext
 from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required
-
+from django.contrib import messages
 
 # from instagram.client import InstagramAPI
 from flickrapi import FlickrAPI
@@ -28,8 +28,26 @@ import rvservices.flickr_service
 def admin_index(request):
 
     request.vals["services"] = RVService.objects.filter(domain=request.domain)
-
     return render(request, "rvadmin/index.html", request.vals)
+    
+    
+@login_required
+@admin_page
+def fix_item(request, iid):
+    
+    dbitem = RVItem.objects.get(id=iid)
+    
+    if dbitem.service.type == "instagram":
+        (ok, msg) = rvservices.instagram_service.fix_instagram_item(iid)
+        if ok:
+            messages.info(request, "OK")
+        else:
+            messages.warning(request, msg)
+    else:
+        messages.error(request, "Can only do instagram right now.")
+        
+        
+    return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @login_required

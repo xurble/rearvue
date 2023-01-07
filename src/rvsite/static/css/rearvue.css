@@ -51,6 +51,12 @@ a, a:visited, a:hover {
     margin-bottom: 5px;
 }
 
+.rvadmin {
+    border: 1px solid #ccc !important; 
+    padding: 5px;
+    border-radius: 3px;
+}
+
 .link a, .link a:visited {
     border-bottom:1px dotted #bbb;
     margin:0px 0px 5px;
