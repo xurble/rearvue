@@ -25,19 +25,19 @@
         {% endblock %}
 	</head>
 	<body>
-        <div class="container">
+        <div class="container-fluid">
 
-            <div class="row">
+            <header class="row">
                 <div class="col-xs-12">
                     <h1 class="link"><a href="/">{{domain.display_name}}</a></h1>
                     <p>{{ domain.blurb }}</p>
                 </div>
-            </div>
+            </header>
 
             <div class="row">
 
             
-                <div class="col-sm-8">
+                <div class="col-sm-8 content">
                 
                     {% if messages %}
                         {% for message in messages %}
@@ -50,9 +50,17 @@
                     {% endblock %}
                 </div>
                 <div class="col-sm-4">
+                
+                    <h2>Sources</h2>
+                        <ul class="sidebar icons">
+                            <li><a href="https://toot.community/@xurble" rel="me" class="icon brands style2 fa-mastodon"><span class="label">Mastodon</span></a></li>
+                            <li><a href="https://twitter.com/xurble" class="icon brands style2 fa-twitter"><span class="label">Twitter</span></a></li>
+                            <li><a href="https://www.instagram.com/xurble/" class="icon brands style2 fa-instagram"><span class="label">Instagram</span></a></li>
+                            <li><a href="https://www.flickr.com/photos/xurble/" class="icon brands style2 fa-flickr"><span class="label">Flickr</span></a></li>
+                        </ul>
                     <h2>Archive</h2>
 
-                    <ul class="link">
+                    <ul class="sidebar link">
                         {% for y in year_range %}
                             <li><a href="{% url "show_year" year=y%}">{{y}}</a></li>
                         {% endfor %}

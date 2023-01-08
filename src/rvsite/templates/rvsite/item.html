@@ -4,7 +4,7 @@
 {% block content %}
 
     {% if user.is_superuser %}
-        <div class="rvadmin">
+        <div class="rvadmin link">
             <a href="{% url 'fix_item' iid=item.id %}">Fix</a>
         </div>
     {% endif %}

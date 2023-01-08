@@ -1,4 +1,4 @@
-
+@import url(fontawesome.css);
 
 
 @font-face {
@@ -37,6 +37,66 @@
 
 }
 
+ul.icons {
+    cursor: default;
+    list-style: none;
+    padding-left:0;
+}
+
+ul.icons li {
+    display: inline-block;
+    padding:0 10px 0 0;
+    font-size:20px;
+}
+
+ul.icons li:last-child {
+    padding-right:0
+}
+
+.icon {
+    text-decoration: none;
+    border-bottom: none;
+    position: relative;
+    text-align:center
+}
+
+.icon:before {
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+    text-transform: none !important;
+    font-family: 'font awesome 5 free';
+    font-weight:400
+}
+
+.icon > .label {
+    display:none
+}
+
+.icon:before {
+    line-height:inherit
+}
+
+.icon.solid:before {
+    font-weight:900
+}
+
+.icon.brands:before {
+    font-family: 'font awesome 5 brands'
+}
+
+.icon.style2:before {
+    border-radius: 2.75em;
+    display: inline-block;
+    height: 2.75em;
+    line-height: 2.75em;
+    width:2.75em
+}
+
 body {
     font-family: Helvetica;
 }
@@ -55,6 +115,10 @@ a, a:visited, a:hover {
     border: 1px solid #ccc !important; 
     padding: 5px;
     border-radius: 3px;
+}
+
+.rvadmin a {
+    color: #999;
 }
 
 .link a, .link a:visited {
@@ -99,7 +163,9 @@ a, a:visited, a:hover {
 }
 
 
-
+div.container-fluid {
+    max-width: 970px !important;
+}
 
 .error {
     color:red;
@@ -147,7 +213,8 @@ h2 {
 }
 
 h2.head {
-    margin-left:30px
+    margin:20px 0px 10px 5px;
+    font-size:22px;
 }
 
 h3 {
@@ -159,8 +226,20 @@ h3 {
     margin:0;
 }
 
-.item {
-    margin-bottom:20px
+h3.right {
+    float:right;
+}
+
+@media (min-width: 768px) {
+    div.media-holder {
+        padding: 0px 20px 0px 20px
+    }
+}
+
+ul.sidebar {
+    list-style: none;
+    margin: 10px 0 20px 0;
+    padding:0;
 }
 
 .item h3 {
@@ -170,6 +249,23 @@ h3 {
 h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
     border-bottom: none !important;
 }
+
+header h1 {
+    margin-bottom: 0;
+    font-size:24px;
+}
+
+header h1.link a {
+    margin:0;
+    padding:0;
+}
+
+header p {
+    font-style: italic;
+    margin-left:10px;
+    color: #888;
+}
+
 
 img.poster_image {
     max-width: 100%;
@@ -189,6 +285,11 @@ div.fp_links ul {
     }
 }
 
+div.content hr {
+    clear: both;
+    margin 10px;
+    border-bottom: 1px dotted #ddd;
+}
 
 table.month td {
     min-width: 30px; 
@@ -213,7 +314,9 @@ table.month a:hover {
 
 ul.post-item-details {
     list-style-type: none;
-    margin-top: 10px;
+    padding: 10px 5px 10px 0px;
+    float:right;
+    font-size:12px;
 }
 ul.post-item-details li {
     display: inline-block;

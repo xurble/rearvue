@@ -1,55 +1,60 @@
             <div class="post">
-                <h3 class="link"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.title}}</a></h3>
+                {% if item.title != "" %}
+                    <h3 class="link"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.title}}</a></h3>
+                {% else %}
+                    <h3 class="link right"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.date_created}}</a></h3>
+                {% endif %}
                 <div class="body link">
                     <p>{{item.caption|safe}}</p>
                 </div>
 
-                {% if item.media_type == 1 %}
+                <div class="media-holder">
+                    {% if item.media_type == 1 %}
                 
-                    {% if item.rvmedia_set.count > 1 %}
-                        <div id="carousel-example-generic" class="carousel slide" data-ride="carousel">
-                          <!-- Indicators -->
-                          <ol class="carousel-indicators">
-                            {% for m in item.media_list %}
-                                <li data-target="#carousel-example-generic" data-slide-to="{{m.idx}}" {% if m.idx == 0 %}class='active'{% endif %}></li>
-                            {% endfor %}
-                          </ol>
+                        {% if item.rvmedia_set.count > 1 %}
+                            <div id="carousel-example-generic" class="carousel slide" data-ride="carousel">
+                              <!-- Indicators -->
+                              <ol class="carousel-indicators">
+                                {% for m in item.media_list %}
+                                    <li data-target="#carousel-example-generic" data-slide-to="{{m.idx}}" {% if m.idx == 0 %}class='active'{% endif %}></li>
+                                {% endfor %}
+                              </ol>
 
-                          <!-- Wrapper for slides -->
-                          <div class="carousel-inner" role="listbox">
+                              <!-- Wrapper for slides -->
+                              <div class="carousel-inner" role="listbox">
                           
-                            {% for m in item.media_list %}
-                                <div class="item {% if m.idx == 0 %}active{% endif %}">
-                                   <img src="/{{m.primary_media}}" alt="{{item.title}}">
+                                {% for m in item.media_list %}
+                                    <div class="item {% if m.idx == 0 %}active{% endif %}">
+                                       <img src="/{{m.primary_media}}" alt="{{item.title}}">
                                   
-                                  <div class="carousel-caption">
-                                        {{m.id}}
-                                  </div>
-                                </div>
-                            {% endfor %}
-                          </div>
+                                      <div class="carousel-caption">
+                                            {{m.id}}
+                                      </div>
+                                    </div>
+                                {% endfor %}
+                              </div>
 
-                          <!-- Controls -->
-                          <a class="left carousel-control" href="#carousel-example-generic" role="button" data-slide="prev">
-                            <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
-                            <span class="sr-only">Previous</span>
-                          </a>
-                          <a class="right carousel-control" href="#carousel-example-generic" role="button" data-slide="next">
-                            <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
-                            <span class="sr-only">Next</span>
-                          </a>
-                        </div>                    
+                              <!-- Controls -->
+                              <a class="left carousel-control" href="#carousel-example-generic" role="button" data-slide="prev">
+                                <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
+                                <span class="sr-only">Previous</span>
+                              </a>
+                              <a class="right carousel-control" href="#carousel-example-generic" role="button" data-slide="next">
+                                <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
+                                <span class="sr-only">Next</span>
+                              </a>
+                            </div>                    
+                        {% else %}
+                            <img src="/{{item.primary_media}}" alt="{{item.title}}" style="max-width:100%">
+                        {% endif %}
                     {% else %}
-                        <img src="/{{item.primary_media}}" alt="{{item.title}}" style="max-width:100%">
-                    {% endif %}
-                {% else %}
-                    <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="/{{item.thumbnail}}" ></video>
-                {% endif %}    
-
+                        <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="/{{item.thumbnail}}" ></video>
+                    {% endif %}    
+                </div>
 
                         
                 <ul class="post-item-details">
-                    <li class="link">Taken <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a></li>     
+                    <li class="link">Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a></li>     
                     <li class="link"><a href="{{item.remote_url}}">View the original on {{item.service.type}}</a></li> 
                 </ul>      
     

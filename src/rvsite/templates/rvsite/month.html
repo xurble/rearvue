@@ -3,7 +3,7 @@
 
 {% block content %}
 
-        <h2 class="head">{{month_name}} <a href="{% url "show_year" year=year %}">{{year}}</a></h2>
+        <h2 class="head link">{{month_name}} <a href="{% url "show_year" year=year %}">{{year}}</a></h2>
         {% for i in items %}
             {% include "rvsite/item_detail.html" with item=i %}
             <hr>
