@@ -37,6 +37,12 @@
 
 }
 
+
+.body {
+    clear:both;
+}
+
+
 ul.icons {
     cursor: default;
     list-style: none;
@@ -72,6 +78,7 @@ ul.icons li:last-child {
     font-family: 'font awesome 5 free';
     font-weight:400
 }
+
 
 .icon > .label {
     display:none
@@ -164,7 +171,7 @@ a, a:visited, a:hover {
 
 
 div.container-fluid {
-    max-width: 970px !important;
+    max-width: 750px !important;
 }
 
 .error {
@@ -230,16 +237,18 @@ h3.right {
     float:right;
 }
 
-@media (min-width: 768px) {
-    div.media-holder {
-        padding: 0px 20px 0px 20px
-    }
-}
+
 
 ul.sidebar {
     list-style: none;
     margin: 10px 0 20px 0;
     padding:0;
+    text-align: center;
+}
+
+ul.sidebar li {
+    display: inline-block;
+    margin: 5px;
 }
 
 .item h3 {

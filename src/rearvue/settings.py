@@ -60,6 +60,7 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'rvsite',
     'rvadmin',
+    'feeds',
 )
 
 MIDDLEWARE = (
@@ -88,8 +89,11 @@ USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = False
+USE_TZ = True
 
+FEEDS_USER_AGENT = "RearVue"
+FEEDS_SERVER = settings_server.FEEDS_SERVER
+FEEDS_CLOUDFLARE_WORKER = None
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.6/howto/static-files/

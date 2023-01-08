@@ -61,61 +61,64 @@ def fix_instagram_item(itemid):
 
 def update_instagram():
 
-
     ig_services = RVService.objects.filter(type="instagram").filter(live=True)
     
     for service in ig_services:
     
-        print("Updating %s" % service)
-    
-        insta = Client(service.username, service.auth_secret)
-        
-        service.userid = insta.authenticated_user_id # just in case
-
-        if service.max_update_id != "":
-            max_id = int(service.max_update_id)
+        if utils.hours_since(service.last_checked) < 12:
+            print("Skipping {s} (too soon)".format(s=service))
         else:
-            max_id = 0    
+            print("Updating {s}".format(s=service))
+    
+            insta = Client(service.username, service.auth_secret)
         
-        ret = insta.user_feed(service.userid, min_id=max_id)
-        
-        items = ret["items"]
+            service.userid = insta.authenticated_user_id # just in case
 
-        next_max_id = ret.get('next_max_id')
-        while next_max_id:
-            ret = insta.user_feed(service.userid, max_id=next_max_id)
-            items.extend(ret.get('items', []))
+            if service.max_update_id != "":
+                max_id = int(service.max_update_id)
+            else:
+                max_id = 0    
+        
+            ret = insta.user_feed(service.userid, min_id=max_id)
+        
+            items = ret["items"]
+
             next_max_id = ret.get('next_max_id')
+            while next_max_id:
+                ret = insta.user_feed(service.userid, max_id=next_max_id)
+                items.extend(ret.get('items', []))
+                next_max_id = ret.get('next_max_id')
 
-        for i in items:
-            if "pk" in i:
-                print(i["pk"])
-                lastphoto = i["pk"]
-                try:
-                    item = RVItem.objects.filter(service=service).filter(item_id=lastphoto)[0]
-                except:
-                    print("NEW!")
-                    item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
-                if i["caption"]:
-                    item.title = i["caption"]["text"]
-                    print(item.title.encode("utf-8"))
+            for i in items:
+                if "pk" in i:
+                    print(i["pk"])
+                    lastphoto = i["pk"]
+                    try:
+                        item = RVItem.objects.filter(service=service).filter(item_id=lastphoto)[0]
+                    except:
+                        print("NEW!")
+                        item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
+                    if i["caption"]:
+                        item.title = i["caption"]["text"]
+                        print(item.title.encode("utf-8"))
             
-                item.datetime_created = datetime.datetime.fromtimestamp(int(i["taken_at"]))
-                item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
+                    item.datetime_created = datetime.datetime.fromtimestamp(int(i["taken_at"]))
+                    item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
 
-                item.remote_url = "https://www.instagram.com/p/{}/".format(i["code"])
+                    item.remote_url = "https://www.instagram.com/p/{}/".format(i["code"])
 
-                item.raw_data = json.dumps(i)
+                    item.raw_data = json.dumps(i)
                 
-                item.save()
+                    item.save()
                 
                 
-                if lastphoto > max_id:
-                    max_id = lastphoto
+                    if lastphoto > max_id:
+                        max_id = lastphoto
                 
             
-        if max_id:                
-            service.max_update_id = str(max_id)
+            if max_id:                
+                service.max_update_id = str(max_id)
+            service.last_checked = datetime.datetime.now()
             service.save() 
             
             

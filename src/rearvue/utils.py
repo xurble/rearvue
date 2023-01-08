@@ -5,6 +5,8 @@ from django.http import HttpResponseNotFound,HttpResponseForbidden
 import os
 import random
 
+from datetime import datetime
+
 MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
 
 
@@ -88,6 +90,11 @@ def sample_of(source_list, requirement):
         requirement = len(source_list)
 
     return random.sample(source_list, requirement)
+    
+def hours_since(date):
+    td  = (datetime.now()-date.replace(tzinfo=None))
+    
+    return (td.days * 24) + int(td.seconds // 3600)
         
         
 	

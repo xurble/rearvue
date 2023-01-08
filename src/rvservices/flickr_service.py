@@ -22,82 +22,86 @@ def update_flickr():
     
     for service in f_services:
 
-        print("Updating %s" % service)
+        if utils.hours_since(service.last_checked) < 12:
+            print("Skipping {s} (too soon)".format(s=service))
+        else:
+            print("Updating {s}".format(s=service))
         
-        """
-        def __init__(self, token, token_secret, access_level,
-                     fullname=u'', username=u'', user_nsid=u''):
-        """
+            """
+            def __init__(self, token, token_secret, access_level,
+                         fullname=u'', username=u'', user_nsid=u''):
+            """
 
-        token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
+            token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
     
-        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
+            f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
 
-        if service.userid == "":
-            try:
-                u = f.people.findByUsername( username = service.username )  
-            
-                service.userid = u["user"]["id"]
-                service.save()                    
-            except Exception as ex:        
-                print(ex)
-                return
-        
-        
-        page = 0
-        pages = 1
-        max_upload_date = 0
-        while page < pages:
-            page += 1
-            print("Getting page ", page)
-  
-            if service.max_update_id != "":
-                min_date = service.max_update_id
-            else:
-                min_date = None
-                
-            pix = f.people.getPhotos(
-                extras="date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
-                user_id=service.userid,
-                page=page,
-                min_upload_date=min_date)["photos"]
-            
-            pages = int(pix["pages"])
-            
-            for i in pix["photo"]:
-                            
-                dateupload = int(i["dateupload"])
-                
-                if dateupload > max_upload_date:
-                    max_upload_date = dateupload
-
+            if service.userid == "":
                 try:
-                    item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
-                except:
-                    print("NEW!")
-                    item = RVItem(item_id=i["id"],service=service,domain=service.domain)
-
-                item.title = i["title"]
-                item.caption = i["description"]["_content"]
-                
-                item.public = (i["ispublic"] == 1)
-                
-                if "datetaken"  in i:
-                    taken_datetime  = datetime.datetime.strptime(i["datetaken"],'%Y-%m-%d %H:%M:%S')
-                else:
-                    taken_datetime = datetime.datetime.fromtimestamp(dateupload)
-                    
-                item.datetime_created = taken_datetime
-                item.date_created     = taken_datetime.date()
-                
-                item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (service.username, i["id"])
-
-                item.raw_data = json.dumps(i)
-                
-                item.save()
+                    u = f.people.findByUsername( username = service.username )  
+            
+                    service.userid = u["user"]["id"]
+                    service.save()                    
+                except Exception as ex:        
+                    print(ex)
+                    return
         
-        if max_upload_date:                
-            service.max_update_id = str(max_upload_date)
+        
+            page = 0
+            pages = 1
+            max_upload_date = 0
+            while page < pages:
+                page += 1
+                print("Getting page ", page)
+  
+                if service.max_update_id != "":
+                    min_date = service.max_update_id
+                else:
+                    min_date = None
+                
+                pix = f.people.getPhotos(
+                    extras="date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
+                    user_id=service.userid,
+                    page=page,
+                    min_upload_date=min_date)["photos"]
+            
+                pages = int(pix["pages"])
+            
+                for i in pix["photo"]:
+                            
+                    dateupload = int(i["dateupload"])
+                
+                    if dateupload > max_upload_date:
+                        max_upload_date = dateupload
+
+                    try:
+                        item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
+                    except:
+                        print("NEW!")
+                        item = RVItem(item_id=i["id"],service=service,domain=service.domain)
+
+                    item.title = i["title"]
+                    item.caption = i["description"]["_content"]
+                
+                    item.public = (i["ispublic"] == 1)
+                
+                    if "datetaken"  in i:
+                        taken_datetime  = datetime.datetime.strptime(i["datetaken"],'%Y-%m-%d %H:%M:%S')
+                    else:
+                        taken_datetime = datetime.datetime.fromtimestamp(dateupload)
+                    
+                    item.datetime_created = taken_datetime
+                    item.date_created     = taken_datetime.date()
+                
+                    item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (service.username, i["id"])
+
+                    item.raw_data = json.dumps(i)
+                
+                    item.save()
+        
+            if max_upload_date:                
+                service.max_update_id = str(max_upload_date)
+            service.last_checked = datetime.datetime.now()
             service.save()
 
 

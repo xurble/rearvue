@@ -15,12 +15,19 @@ from django.db.models import Max,Min
 
 from rvservices.instagram_service import update_instagram,mirror_instagram
 from rvservices.flickr_service import update_flickr,mirror_flickr
+from rvservices.rss_service import update_rss
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 if __name__ == "__main__":
 
+    print("Updating RSS")
+    try:
+        update_rss()
+    except Exception as ex:
+        print(ex)
+    
     print("Updating Instagram")
     try:
         update_instagram()
@@ -32,7 +39,6 @@ if __name__ == "__main__":
     #    mirror_instagram()
     #except Exception as ex:
     #    print(ex)
-    
     
     print("Updating Flickr")
     try:

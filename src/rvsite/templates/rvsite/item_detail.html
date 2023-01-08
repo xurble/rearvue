@@ -8,7 +8,8 @@
                     <p>{{item.caption|safe}}</p>
                 </div>
 
-                <div class="media-holder">
+                {% if item.media_type > 0 %}
+                    <div class="media-holder">
                     {% if item.media_type == 1 %}
                 
                         {% if item.rvmedia_set.count > 1 %}
@@ -51,7 +52,7 @@
                         <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls poster="/{{item.thumbnail}}" ></video>
                     {% endif %}    
                 </div>
-
+                {% endif %}
                         
                 <ul class="post-item-details">
                     <li class="link">Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a></li>     
