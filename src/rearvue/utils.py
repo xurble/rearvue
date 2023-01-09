@@ -95,6 +95,11 @@ def hours_since(date):
     td  = (datetime.now()-date.replace(tzinfo=None))
     
     return (td.days * 24) + int(td.seconds // 3600)
-        
+    
+
+def get_extension(from_url):
+
+    noquery = from_url.split("?")[-1]
+    return noquery.split(".")[-1]
         
 	

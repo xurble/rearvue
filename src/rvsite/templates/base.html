@@ -48,19 +48,32 @@
                     {% block content %}
     
                     {% endblock %}
+                    
+                    <br style="clear:both">
                 </div>
                 <div class="col-sm-4">
                 
                     <h2>Sources</h2>
-                        <ul class="sidebar icons">
-                            <li><a href="https://toot.community/@xurble" rel="me" class="icon brands style2 fa-mastodon"><span class="label">Mastodon</span></a></li>
-                            <li><a href="https://twitter.com/xurble" class="icon brands style2 fa-twitter"><span class="label">Twitter</span></a></li>
-                            <li><a href="https://www.instagram.com/xurble/" class="icon brands style2 fa-instagram"><span class="label">Instagram</span></a></li>
-                            <li><a href="https://www.flickr.com/photos/xurble/" class="icon brands style2 fa-flickr"><span class="label">Flickr</span></a></li>
+                        <!-- todo: auto-generate this -->
+                        <ul class="sidebar link">
+                            <li><a href="https://toot.community/@xurble" rel="me" class="icon brands  fa-mastodon"><span class="label">Mastodon</span> @xurble@toot.community</a></li>
+                            <li><a href="https://twitter.com/xurble" class="icon brands  fa-twitter"><span class="label">Twitter</span> @xurble</a></li>
+                            <li><a href="https://www.instagram.com/xurble/" class="icon brands  fa-instagram"><span class="label">Instagram</span> @xurble</a></li>
+                            <li><a href="https://www.flickr.com/photos/xurble/" class="icon brands  fa-flickr"><span class="label">Flickr</span> xurble</a></li>
+                            <li><a href="https://github.com/xurble/" class="icon brands fa-github"><span class="label">Github</span> xurble</a></li>
                         </ul>
+
+                    <h2>Links</h2>
+                        <!-- todo: auto-generate this -->
+                        <ul class="sidebar link">
+                            <li><a href="https://recastthis.com" rel="me">Recast</a></li>
+                            <li><a href="https://poplar.farm" rel="me">Poplar Farm</a></li>
+                        </ul>
+
+
                     <h2>Archive</h2>
 
-                    <ul class="sidebar link">
+                    <ul class="sidebar link archive">
                         {% for y in year_range %}
                             <li><a href="{% url "show_year" year=y%}">{{y}}</a></li>
                         {% endfor %}

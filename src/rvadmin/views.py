@@ -21,6 +21,7 @@ from rvsite.models import *
 
 import rvservices.instagram_service
 import rvservices.flickr_service
+import rvservices.rss_service
 
 
 @login_required
@@ -39,12 +40,16 @@ def fix_item(request, iid):
     
     if dbitem.service.type == "instagram":
         (ok, msg) = rvservices.instagram_service.fix_instagram_item(iid)
-        if ok:
-            messages.info(request, "OK")
-        else:
-            messages.warning(request, msg)
+    elif dbitem.service.type == "rss":
+        (ok, msg) = rvservices.rss_service.fix_rss_item(iid)
     else:
-        messages.error(request, "Can only do instagram right now.")
+       (ok, msg) = (False, "Can only do instagram & RSS right now.")
+
+
+    if ok:
+        messages.info(request, "OK")
+    else:
+        messages.warning(request, msg)
         
         
     return HttpResponseRedirect(request.META["HTTP_REFERER"])

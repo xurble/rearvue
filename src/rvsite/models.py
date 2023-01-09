@@ -65,6 +65,11 @@ class RVItem(models.Model):
 
     mirror_state     = models.IntegerField(default=0)
     
+
+    @property
+    def date_created_display(self):
+        return "{} {} {}".format(self.date_created.day, self.created_month_name, self.date_created.year)
+    
     @property
     def created_month_name(self):
         from rearvue.utils import MONTH_LIST
