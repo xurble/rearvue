@@ -65,7 +65,7 @@ def update_instagram():
     
     for service in ig_services:
     
-        if utils.hours_since(service.last_checked) < 12:
+        if utils.hours_since(service.last_checked) < 24:
             print("Skipping {s} (too soon)".format(s=service))
         else:
             print("Updating {s}".format(s=service))
