@@ -144,25 +144,13 @@ a, a:visited, a:hover {
 }
 
 .link a:hover {
-    text-decoration: none;
     color:#3D85C6;
     border-bottom:none;
     
 }
 
 
-.link a::after {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	width: 100%;
-	height: 1px;
-	background: #3D85C6;
-	content: '';
-	opacity: 0;
-	transition: height 0.3s, opacity 0.3s, transform 0.3s;
-	transform: translateY(-10px);
-}
+
 
 .link a:hover::after,
 .link a:focus::after {
@@ -216,8 +204,8 @@ h1, h2, h3, h4 {
 
 div.text-thumbnail {
     border: 1px solid #ccc;
-    padding: 1px;
-    font-size:3px;
+    padding: 5px;
+    font-size:32px;
     max-height: 50px;
     max-width:100%;
     overflow-x: hidden;
@@ -249,7 +237,7 @@ h3 {
     letter-spacing: 1px;
     line-height: 1.4;
     text-transform: uppercase;
-    padding: 25px 0px 2px 0px;
+    padding: 10px 0px 2px 0px;
     margin:0;
 }
 
@@ -332,8 +320,8 @@ div.fp_links ul {
 
 div.content hr {
     clear: both;
-    margin 10px;
-    padding-bottom:20px;
+    margin: 15px;
+    border-top: 1px dashed #999;
 }
 
 table.month td {
@@ -358,11 +346,12 @@ table.month a:hover {
     background-color: #333;
 }
 
-ul.post-item-details {
+.post-item-details {
     list-style-type: none;
     padding: 10px 5px 10px 0px;
-    float:right;
-    font-size:12px;
+    text-align:right;
+    font-style: italic;
+    font-size:11px;
 }
 ul.post-item-details li {
     display: inline-block;

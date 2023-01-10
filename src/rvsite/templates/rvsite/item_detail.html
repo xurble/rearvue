@@ -54,9 +54,9 @@
                 </div>
                 {% endif %}
                         
-                <ul class="post-item-details">
-                    <li class="link">Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a></li>     
-                    <li class="link"><a href="{{item.remote_url}}">View the original on {{item.service.name}}</a></li> 
-                </ul>      
+                <div class="post-item-details">
+                    Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a>    
+                    to <a href="{{item.remote_url}}">{{item.service.name}}</a>
+                </div>      
     
             </div>

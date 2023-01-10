@@ -64,7 +64,16 @@ class RVItem(models.Model):
     raw_data         = models.TextField(blank=True,default='')
 
     mirror_state     = models.IntegerField(default=0)
-    
+
+
+    @property
+    def first_character(self):
+        if self.title != "":
+            return self.title[0]
+        elif self.caption != "":
+            return self.caption[0]
+        else:
+            return "📖"    
 
     @property
     def date_created_display(self):
