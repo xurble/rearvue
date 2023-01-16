@@ -64,12 +64,13 @@ def show_year(request, year):
     months = []
     for month  in MONTH_LIST:
         mitems = []
-        months.append((month,mitems))
+        months.append([month, mitems, 0])
     
     for i in items:
         mlist = months[i.date_created.month][1] 
-        if len(mlist) < 6:
+        if len(mlist) < 6 and i.rvmedia_set.count() > 0:
             mlist.append(i)
+        months[i.date_created.month][2] = months[i.date_created.month][2] + 1 
             
     
     request.vals["months"] = months
@@ -90,7 +91,7 @@ def show_month(request, year, month):
             week[day]= [week[day],0]
                 
     
-    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)& Q(public=True)).order_by("date_created"))
+    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)& Q(public=True)).order_by("datetime_created"))
         
     request.vals["month_name"] = MONTH_LIST[int(month)]
     

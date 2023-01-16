@@ -11,8 +11,9 @@ urlpatterns = [
     url(r'^flickr_connect/(?P<iid>.*)/', flickr_connect, name='flickr_connect'),
     url(r'^flickr_return/',flickr_return, name='flickr_return'),
 
-    url(r'^$', admin_index, name='admin_index'),
+    url(r'^twitter_connect/(?P<iid>.*)/', twitter_connect, name='twitter_connect'),
 
+    url(r'^$', admin_index, name='admin_index'),
     
     url(r'^fix_item/(?P<iid>.*)/$', fix_item, name='fix_item'),
 

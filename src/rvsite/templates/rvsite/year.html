@@ -8,22 +8,16 @@
 
             <div class="link">
         {% for m in months %}
-            {% if m.1|length > 0 %}  
-                    <h3><a href="{{forloop.counter0}}/">{{m.0}}</a></h3>
+            {% if m.2 > 0 %}  
+                    <h3><a href="{{forloop.counter0}}/">{{m.2}} posts in {{m.0}}</a></h3>
                     <div class="row">
                     {% for i in m.1 %}
                         <div class="col-xs-4 col-sm-2 link">
                             <a href="{% url "show_item" year=i.date_created.year month=i.date_created.month day=i.date_created.day iid=i.id%}">
-                                {% if i.rvmedia_set.count > 0 %}
-                                    <img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;width:100%">
-                                {% else %}
-                                    <div class="text-thumbnail">
-                                        {{ i.first_character }}
-                                    </div>
-                                {% endif %}
+                                <img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;width:100%">
                             </a>
                         </div>
-                    {% endfor %}   
+                    {% endfor %}  
                     </div>          
             {% endif %}
         {% endfor %}
