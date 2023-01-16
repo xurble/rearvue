@@ -16,11 +16,20 @@ from django.db.models import Max,Min
 from rvservices.instagram_service import update_instagram,mirror_instagram
 from rvservices.flickr_service import update_flickr,mirror_flickr
 from rvservices.rss_service import update_rss, mirror_rss
-
+from rvservices.twitter_service import find_twitter_links, mirror_twitter
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 if __name__ == "__main__":
+
+
+
+    print("Updating Twitter")
+    try:
+        mirror_twitter()
+        find_twitter_links()
+    except Exception as ex:
+        print(ex)
 
     print("Updating RSS")
     try:

@@ -8,6 +8,7 @@ import datetime
 import json
 import requests
 from rearvue import utils
+from webpreview import webpreview
 
 
 def fix_twitter_item(itemid):
@@ -34,7 +35,8 @@ def import_archive(service, data):
                 print("NEW!")
                 item = RVItem(item_id=tweet["id"], service=service, domain=service.domain)
 
-            item.caption = tweet["full_text"].replace("\n", "<br>")
+            item.caption = tweet["full_text"]
+                
 
             for n in reversed(tweet["entities"]["user_mentions"]):
                 # go backwards to avoid trashing things by moving things around
@@ -81,27 +83,75 @@ def import_archive(service, data):
                     )
                     item.caption = item.caption.replace(m[0], "")
                     
-                
-                
-
+            item.caption = item.caption.replace("\n", "<br>")
 
             item.raw_data = json.dumps(tweet)
         
             if "media" in tweet["entities"] and item.mirror_state == 0:
                 item.save()
-                mirror_tweet(specific_item=item)
+                mirror_twitter(specific_item=item)
             else:
                 item.mirror_state = 1
                 item.save()
                 
+                
+def find_twitter_links(specific_item=None):
 
 
-def mirror_tweet(specific_item=None):
-    
     if specific_item is not None:
         queue = [specific_item]
     else:
-        queue = RVItem.objects.filter(mirror_state=0).filter(service__type="twitter").filter(service__live=True)[:50]
+        queue = RVItem.objects.filter(mirror_state=1).filter(service__type="twitter").filter(service__live=True)[:500]
+        
+    for item in queue:
+    
+        try:    
+            tweet = json.loads(item.raw_data)
+            
+            if "urls" in tweet["entities"]:
+            
+                try:
+                    for u in tweet["entities"]["urls"]:
+                        
+                        if not u["expanded_url"].startswith("https://twitter.com"):
+                            try:
+                                link = item.rvlink_set.filter(url=u["expanded_url"])[0]
+                            except:
+                                print("NEW PREVIEW")
+                                link = RVLink()
+                                link.url=u["expanded_url"]
+                                link.item = item
+                        
+                            print (link.url)
+                            p = webpreview(link.url, timeout=1000)
+                    
+                            link.title = p.title
+                            link.image = p.image
+                            link.description = p.description
+                        
+                            if link.title is None: link.title = ""
+                            if link.image is None: link.image = ""
+                            if link.description is None: link.description = ""
+                    
+                            link.save()
+                except Exception as ex:
+                    print (ex)
+                    pass
+            item.mirror_state = 2
+            item.save()
+        except Exception as ex:
+            print(exs)
+                    
+                    
+                
+
+
+def mirror_twitter(specific_item=None):
+
+    if specific_item is not None:
+        queue = [specific_item]
+    else:
+        queue = RVItem.objects.filter(mirror_state=0).filter(service__type="twitter").filter(service__live=True)[:100]
     
     for item in queue:
     

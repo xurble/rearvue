@@ -91,7 +91,7 @@ def show_month(request, year, month):
             week[day]= [week[day],0]
                 
     
-    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state=1)& Q(public=True)).order_by("datetime_created"))
+    items = list(RVItem.objects.filter(Q(date_created__gte=start_date)&Q(date_created__lt=end_date)&Q(mirror_state__gte=1)& Q(public=True)).order_by("datetime_created"))
         
     request.vals["month_name"] = MONTH_LIST[int(month)]
     

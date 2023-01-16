@@ -24,17 +24,18 @@ class RVDomain(models.Model):
 
 
 class RVService(models.Model):
-    name           = models.CharField(max_length=512)
-    domain         = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
-    type           = models.CharField(max_length=128)
-    last_checked   = models.DateTimeField(default=datetime.datetime(2015, 1, 10, 17, 26, 51, 977260)) #old date makes it get checked right away
-    username       = models.CharField(max_length=128,blank=True,default='')
-    userid         = models.CharField(max_length=128,blank=True,default='')
-    profile_pic    = models.CharField(max_length=512,blank=True,default='')
-    max_update_id  = models.CharField(max_length=256,blank=True,default='')
-    auth_token     = models.CharField(max_length=256,blank=True,default='')
-    auth_secret    = models.CharField(max_length=256,blank=True,default='')
-    live           = models.BooleanField(default=True)
+    name             = models.CharField(max_length=512)
+    domain           = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
+    type             = models.CharField(max_length=128)
+    last_checked     = models.DateTimeField(default=datetime.datetime(2015, 1, 10, 17, 26, 51, 977260)) #old date makes it get checked right away
+    username         = models.CharField(max_length=128,blank=True,default='')
+    userid           = models.CharField(max_length=128,blank=True,default='')
+    profile_pic      = models.CharField(max_length=512,blank=True,default='')
+    max_update_id    = models.CharField(max_length=256,blank=True,default='')
+    auth_token       = models.CharField(max_length=256,blank=True,default='')
+    auth_secret      = models.CharField(max_length=256,blank=True,default='')
+    live             = models.BooleanField(default=True)
+    hide_unmoderated = models.BooleanField(default=False)
     
     
     
@@ -64,6 +65,9 @@ class RVItem(models.Model):
     raw_data         = models.TextField(blank=True,default='')
 
     mirror_state     = models.IntegerField(default=0)
+    
+    moderated        = models.BooleanField(default=False)
+    edited           = models.BooleanField(default=False)
 
 
     @property
@@ -118,7 +122,23 @@ class RVItem(models.Model):
         return items 
     
     
-        
+
+class RVLink(models.Model):
+
+    item        = models.ForeignKey(RVItem, on_delete=models.CASCADE)
+
+    url         = models.CharField(max_length=512)
+    title       = models.CharField(max_length=256,blank=True,default='')
+    description = models.TextField(blank=True, default='') 
+    image       = models.CharField(max_length=256,blank=True,default='')
+    context     = models.BooleanField(default=False)
+
+    def make_image_path(self,file_type):
+    
+        self.original_media = "media/%s/%d/%02d/%02d/%s_%d_link.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
+        return self.image
+
+
         
 class RVMedia(models.Model):
     
