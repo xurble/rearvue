@@ -53,6 +53,18 @@
                     {% endif %}    
                 </div>
                 {% endif %}
+                
+                {% for l in item.rvlink_set.all %}
+                    <div class="link-preview">
+                        <a href="{{l.url}}">
+                            {% if l.image != "" %}
+                                <img src="{{l.image}}" alt="Site Logo">
+                            {% endif %}
+                            <h4>{{l.title}}</h4>
+                            <p>{{l.description}}</p>
+                        </a>
+                    </div>
+                {% endfor %}
                         
                 <div class="post-item-details">
                     Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a>    
