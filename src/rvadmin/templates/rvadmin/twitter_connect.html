@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+
+    <div class="container">
+    
+        <div class="row">
+        
+            <div class="col-sm-12">
+        
+                <h3>Connect to Twitter</h3>
+                <p>Broken :(</p>
+                <form method="POST">
+                    <input type="hidden" name="action" value="connect">
+                    <input type="submit" class="btn btn-primary" value="Connect">
+                    {% csrf_token %}
+                </form>
+                <hr>
+                <h3>Import Twitter Archive</h3>
+                <p>Import just the <code>tweets.js</code> file from your archive</p>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="archive">
+                    <input type="file" name="archive"><br>
+                    <input type="submit" class="btn btn-primary" value="Upload">
+                    {% csrf_token %}
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+
+
+{% endblock %}

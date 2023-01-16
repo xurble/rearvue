@@ -22,6 +22,7 @@ from rvsite.models import *
 import rvservices.instagram_service
 import rvservices.flickr_service
 import rvservices.rss_service
+import rvservices.twitter_service
 
 
 @login_required
@@ -42,9 +43,10 @@ def fix_item(request, iid):
         (ok, msg) = rvservices.instagram_service.fix_instagram_item(iid)
     elif dbitem.service.type == "rss":
         (ok, msg) = rvservices.rss_service.fix_rss_item(iid)
+    elif dbitem.service.type == "twitter":
+        (ok, msg) = rvservices.twitter_service.fix_twitter_item(iid)
     else:
-       (ok, msg) = (False, "Can only do instagram & RSS right now.")
-
+       (ok, msg) = (False, "Can't do this for {} yet.".format(dbitem.service.type))
 
     if ok:
         messages.info(request, "OK")
@@ -192,3 +194,24 @@ def flickr_return(request):
     
     
     return HttpResponseRedirect("/rvadmin/")  #todo return reverse
+
+@login_required
+@admin_page
+def twitter_connect(request, iid):
+
+    svc = get_object_or_404(RVService,id=int(iid))
+
+    vals = {}
+    
+    if request.method == "POST":
+        if request.POST["action"] == "archive":
+            js = request.FILES["archive"]
+            data = js.read().decode('utf-8')
+            
+            data = data[len("window.YTD.tweets.part0 = "):]
+            rvservices.twitter_service.import_archive(svc, json.loads(data))
+            
+                
+        return HttpResponseRedirect("/rvadmin/")  #todo return reverse
+    else:
+        return render(request,"rvadmin/twitter_connect.html",vals)
