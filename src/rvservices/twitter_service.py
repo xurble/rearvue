@@ -18,7 +18,8 @@ def fix_twitter_item(itemid):
     dbitem = RVItem.objects.get(id=itemid)
 
     try:
-        mirror_tweet(specific_item=dbitem)
+        mirror_twitter(specific_item=dbitem)
+        find_twitter_links(specific_item=dbitem)
         return (True, "Yo!")
     except Exception as ex:
         return (False, str(ex))
@@ -124,16 +125,24 @@ def find_twitter_links(specific_item=None):
                         
                             print (link.url)
                             p = webpreview(link.url, timeout=1000)
+                            
+                            if p.image != "":
+                                ret = requests.get(p.image, timeout=30)
+                                if not ret.ok:
+                                    p.image = ""
+                                    
+                            # Cloudflare :(
+                            if p.title != "Access denied":
                     
-                            link.title = p.title
-                            link.image = p.image
-                            link.description = p.description
+                                link.title = p.title
+                                link.image = p.image
+                                link.description = p.description
                         
-                            if link.title is None: link.title = ""
-                            if link.image is None: link.image = ""
-                            if link.description is None: link.description = ""
+                                if link.title is None: link.title = ""
+                                if link.image is None: link.image = ""
+                                if link.description is None: link.description = ""
                     
-                            link.save()
+                                link.save()
                 except Exception as ex:
                     print (ex)
                     pass
@@ -217,31 +226,25 @@ def mirror_twitter(specific_item=None):
                         img.save(target_path)
                         
                 elif m["type"] in ["animated_gif", "video"]:
-
-                    ret = requests.get(m["video_info"]["variants"][-1]["url"], timeout=30, verify=False)
-                    rvm.media_type = 2
-                    ext = m["video_info"]["variants"][-1]["url"].split(".")[-1]
                     
-                    if ret.ok:
-                        output_path = rvm.make_original_path(ext)
-        
-                        target_path = utils.make_full_path(output_path)
-    
-                        utils.make_folder(target_path)
-
-                        fh = open(target_path,"wb")
-                        fh.write(ret.content)
-                        fh.close()
-    
-                        #for twitter original and priamary are the same
-                        rvm.primary_media = rvm.original_media
-
-                        ret = requests.get(m["media_url_https"], timeout=30, verify=False)
-     
-                        ext = m["media_url_https"].split(".")[-1]
-
+                    best = None
+                    br = 0
+                    for v in m["video_info"]["variants"]:
+                        if v["content_type"].startswith("video/"):
+                            if best is None:
+                                best = v
+                            if "bitrate" in v and int(v["bitrate"]) > br:
+                                br = int(v["bitrate"])
+                                best = v
+                        
+                
+                    if best is not None:
+                        ret = requests.get(best["url"], timeout=30, verify=False)
+                        rvm.media_type = 2
+                        ext = best["content_type"].split("/")[-1]
+                    
                         if ret.ok:
-                            output_path = rvm.make_thumbnail_path(ext)
+                            output_path = rvm.make_original_path(ext)
         
                             target_path = utils.make_full_path(output_path)
     
@@ -250,6 +253,24 @@ def mirror_twitter(specific_item=None):
                             fh = open(target_path,"wb")
                             fh.write(ret.content)
                             fh.close()
+    
+                            #for twitter original and priamary are the same
+                            rvm.primary_media = rvm.original_media
+
+                            ret = requests.get(m["media_url_https"], timeout=30, verify=False)
+     
+                            ext = m["media_url_https"].split(".")[-1]
+
+                            if ret.ok:
+                                output_path = rvm.make_thumbnail_path(ext)
+        
+                                target_path = utils.make_full_path(output_path)
+    
+                                utils.make_folder(target_path)
+
+                                fh = open(target_path,"wb")
+                                fh.write(ret.content)
+                                fh.close()
 
 
 

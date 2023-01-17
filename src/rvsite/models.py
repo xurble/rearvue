@@ -19,6 +19,8 @@ class RVDomain(models.Model):
     
     blurb         = models.TextField(null=True,blank=True,default='')
     
+    last_updated  = models.DateTimeField(null=True, blank=True)
+    
     def __str__(self):
         return "%s - %s" % (self.name,self.display_name)
 
@@ -70,6 +72,10 @@ class RVItem(models.Model):
     edited           = models.BooleanField(default=False)
 
 
+    def __str__(self):
+        return "%s - %s (%d)" % (self.remote_url,self.service.name, self.mirror_state)
+
+
     @property
     def first_character(self):
         if self.title != "":
@@ -108,8 +114,6 @@ class RVItem(models.Model):
         return self.rvmedia_set.first().original_media
 
     
-    def __str__(self):
-        return "{title} on {service}".format(title=self.title,service=self.service.name)
         
         
     @property
@@ -135,6 +139,9 @@ class RVLink(models.Model):
 
     def make_image_path(self,file_type):
     
+        if "?" in file_type:
+            file_type = file_type.split("?")[0]
+    
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_link.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.image
 
@@ -152,16 +159,22 @@ class RVMedia(models.Model):
 
 
     def make_original_path(self,file_type):
+        if "?" in file_type:
+            file_type = file_type.split("?")[0]
     
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.original_media
         
     def make_primary_path(self,file_type):
+        if "?" in file_type:
+            file_type = file_type.split("?")[0]
     
         self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.primary_media
 
     def make_thumbnail_path(self,file_type):
+        if "?" in file_type:
+            file_type = file_type.split("?")[0]
     
         self.thumbnail =  "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.thumbnail 
