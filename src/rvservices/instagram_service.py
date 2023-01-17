@@ -5,6 +5,7 @@ import datetime
 import os
 
 from django.conf import settings
+from django.utils import timezone
 
 from rvsite.models import *
 from rearvue import utils
@@ -67,65 +68,71 @@ def update_instagram():
 
     date_format = '%Y-%m-%dT%H:%M:%S%z'
 
-    
     ig_services = RVService.objects.filter(type="instagram").filter(live=True)
     
     for service in ig_services:
     
-        print("Updating %s" % service)
-    
-        redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
-
-        insta = InstagramBasicDisplay(
-            app_id=settings.INSTAGRAM_KEY, 
-            app_secret=settings.INSTAGRAM_SECRET,
-            redirect_url=redirect_uri)
-
-        insta.set_access_token(service.auth_token)    
-            
-        if service.max_update_id != "":
-            max_id = int(service.max_update_id)
+        if utils.hours_since(service.last_checked) < 12:
+            print("Skipping {s} (too soon)".format(s=service))
         else:
-            max_id = None    
+            print("Updating {s}".format(s=service))
 
-        media = insta.get_user_media(user_id='me')        
+    
+            redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
+
+            insta = InstagramBasicDisplay(
+                app_id=settings.INSTAGRAM_KEY, 
+                app_secret=settings.INSTAGRAM_SECRET,
+                redirect_url=redirect_uri)
+
+            insta.set_access_token(service.auth_token)    
+            
+            if service.max_update_id != "":
+                max_id = int(service.max_update_id)
+            else:
+                max_id = None    
+
+            media = insta.get_user_media(user_id='me')        
 
 
-        while True:        
+            while True:        
 
-            if media is None:
-                break
-            items = media["data"]
+                if media is None:
+                    break
+                items = media["data"]
 
-            for i in items:
-                if "id" in i:
-                    print(i["id"])
-                    lastphoto = i["id"]
-                    try:
-                        item = RVItem.objects.filter(service=service).filter(item_id=lastphoto)[0]
-                    except:
-                        print("NEW!")
-                        item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
-                    if "caption" in i:
-                        item.title = i["caption"]
-                        print(item.title.encode("utf-8"))
+                for i in items:
+                    if "id" in i:
+                        print(i["id"])
+                        lastphoto = i["id"]
+                        try:
+                            item = RVItem.objects.filter(service=service).filter(item_id=lastphoto)[0]
+                        except:
+                            print("NEW!")
+                            item = RVItem(item_id=lastphoto,service=service,domain=service.domain)
+                        if "caption" in i:
+                            item.title = i["caption"]
+                            print(item.title.encode("utf-8"))
 
-                    item.datetime_created = datetime.datetime.strptime(i["timestamp"], date_format).replace(tzinfo=None)
-                    item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
+                        item.datetime_created = datetime.datetime.strptime(i["timestamp"], date_format).replace(tzinfo=None)
+                        item.date_created     = datetime.date(year=item.datetime_created.year,month=item.datetime_created.month,day=item.datetime_created.day)
 
-                    item.remote_url = i["permalink"]
+                        item.remote_url = i["permalink"]
 
-                    item.raw_data = json.dumps(i)
+                        item.raw_data = json.dumps(i)
                 
-                    item.save()    
+                        item.save()    
                     
-                    if item.mirror_state == 0:
-                        mirror_instagram(specific_item=item)            
+                        if item.mirror_state == 0:
+                            mirror_instagram(specific_item=item)            
                 
-                    if max_id is None or lastphoto > max_id:
-                        max_id = lastphoto
+                        if max_id is None or lastphoto > max_id:
+                            max_id = lastphoto
 
-            media = insta.pagination(media)
+                media = insta.pagination(media)
+
+            service.last_checked = timezone.now()
+            service.save()
                 
             
             

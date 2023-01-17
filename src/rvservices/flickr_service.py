@@ -6,7 +6,7 @@ import os
 from rvsite.models import *
 from rearvue import utils
 
-
+from django.utils import timezone
 import flickrapi
 
 import json
@@ -101,7 +101,7 @@ def update_flickr():
         
             if max_upload_date:                
                 service.max_update_id = str(max_upload_date)
-            service.last_checked = datetime.datetime.now()
+            service.last_checked = timezone.now()
             service.save()
 
 

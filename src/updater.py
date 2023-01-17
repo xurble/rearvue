@@ -10,7 +10,8 @@ django.setup()
 
 from rvsite.models import *
 
-from django.db.models import Max,Min
+from django.db.models import Max, Min
+from django.utils import timezone
 
 
 from rvservices.instagram_service import update_instagram,mirror_instagram
@@ -79,6 +80,8 @@ if __name__ == "__main__":
     
             domain.max_year = max_year.year
             domain.min_year = min_year.year
+            
+            domain.last_updated = timezone.now()
     
             domain.save()
         except Exception as ex:

@@ -61,6 +61,12 @@
                         <li><a href="/admin/">Django Admin</a></li>
                     </ul>
                     {% endif %}
+                    
+                    <h2>About</h2>
+                    <p>
+                        This is an <a href="https://github.com/xurble/rearvue">automatic archive</a> of posts made by {{ domain.owner.get_full_name }}
+                        on various services around the internet.
+                    </p>.
                 
                     <h2>Sources</h2>
                         <!-- todo: auto-generate this -->
@@ -76,6 +82,7 @@
                         <!-- todo: auto-generate this -->
                         <ul class="sidebar link">
                             <li><a href="https://recastthis.com" rel="me">Recast</a></li>
+                            <li><a href="https://github.com/xurble/rearvue" rel="me">RearVue</a></li>
                             <li><a href="https://poplar.farm" rel="me">Poplar Farm</a></li>
                         </ul>
 
@@ -95,8 +102,8 @@
 
         </div>
 
-        <footer class="link">
-            A collection of stuff by {{ domain.owner.get_full_name }}.  Powered by <a href="https://github.com/xurble/rearvue">RearVue</a>.
+        <footer>
+            Copyright &copy; {{ domain.owner.get_full_name }} {{ domain.min_year }} - {{ domain.max_year }}.  Last updated {{ domain.last_updated }}.
         </footer>
 
 

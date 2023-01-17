@@ -40,6 +40,7 @@
 
 .body {
     clear:both;
+    font-size:16px;
 }
 
 
@@ -171,6 +172,7 @@ footer {
     display: block;
     text-align: center;  
     height: 50px;
+    font-size:11px;
 }
 
 footer ul, footer ul li {
@@ -273,9 +275,10 @@ header h1.link a {
 
 header p {
     font-style: italic;
-    margin-left:10px;
+    margin-left:20px;
     color: #444;
     font-weight: bold;
+    font-size: 15px;
 }
 
 
