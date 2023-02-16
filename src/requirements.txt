@@ -6,7 +6,7 @@
 #
 asgiref==3.6.0
     # via django
-beautifulsoup4==4.11.1
+beautifulsoup4==4.11.2
     # via
     #   django-feed-reader
     #   webpreview
@@ -14,7 +14,7 @@ certifi==2022.12.7
     # via requests
 charset-normalizer==3.0.1
     # via requests
-django==3.2.16
+django==3.2.18
     # via
     #   -r requirements.in
     #   django-feed-reader
@@ -68,7 +68,7 @@ six==1.16.0
     # via
     #   flickrapi
     #   python-dateutil
-soupsieve==2.3.2.post1
+soupsieve==2.4
     # via beautifulsoup4
 sqlparse==0.4.3
     # via django
