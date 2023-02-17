@@ -231,8 +231,12 @@ h3.right {
     float:right;
 }
 
-.invisible {
-    visibility: visible !important;
+span.invisible {
+    display:none;
+}
+
+span.ellipsis::after {
+    content: "…";
 }
 
 ul.sidebar {

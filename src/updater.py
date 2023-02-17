@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from rvservices.instagram_service import update_instagram,mirror_instagram
 from rvservices.flickr_service import update_flickr,mirror_flickr
-from rvservices.rss_service import update_rss, mirror_rss
+from rvservices.rss_service import update_rss, mirror_rss, find_rss_links
 from rvservices.twitter_service import find_twitter_links, mirror_twitter
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     try:
         mirror_rss()
+        find_rss_links()
     except Exception as ex:
         print(ex)
 

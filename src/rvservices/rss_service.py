@@ -10,6 +10,9 @@ from rearvue import utils
 import requests
 from PIL import Image
 
+from bs4 import BeautifulSoup
+from webpreview import webpreview
+
 
 
 def fix_rss_item(itemid):
@@ -20,6 +23,7 @@ def fix_rss_item(itemid):
 
     try:
         mirror_rss(specific_item=dbitem)
+        find_rss_links(specific_item=dbitem)
         return (True, "Yo!")
     except Exception as ex:
         return (False, str(ex))
@@ -133,7 +137,76 @@ def mirror_rss(specific_item=None):
             item.mirror_state = 1
             item.save()
         except Exception as ex:
-            print(ex)                        
+            print(ex)     
+            
+            
+def find_rss_links(specific_item=None):      
+
+    if specific_item is not None:
+        queue = [specific_item]
+    else:
+        queue = RVItem.objects.filter(mirror_state=1).filter(service__type="rss").filter(service__live=True)[:50]
+        
+        
+    
+    for item in queue:
+        try:    
+            last_link = ""
+            
+            # Find all the links 
+            # we're going to try and figure out
+            # the most important one to highlight        
+            soup = BeautifulSoup(item.caption)
+            links = []
+            for l in soup.findAll(name="a"):
+                if l.has_attr("href"):
+                    if l.text.startswith("http"):
+                        last_link = l["href"]
+                    
+    
+            if last_link != "":        
+                print ("linking up {}".format(last_link))
+                                
+                try:
+                    link = item.rvlink_set.filter(url=last_link)[0]
+                except:
+                    print("NEW PREVIEW")
+                    link = RVLink()
+                    link.url=last_link
+                    link.item = item
+        
+                print (link.url)
+                p = webpreview(link.url, timeout=1000)
+            
+                if not p.image is None and p.image != "":
+                    ret = requests.get(p.image, timeout=30)
+                    if not ret.ok:
+                        p.image = ""
+                    
+                # Cloudflare :(
+                if p.title != "Access denied":
+    
+                    link.title = p.title
+                    link.image = p.image
+                    link.description = p.description
+        
+                    if link.title is None: link.title = ""
+                    if link.image is None: link.image = ""
+                    if link.description is None: link.description = ""
+    
+                    link.save()
+                
+                
+            item.mirror_state = 2
+            item.save()
+                    
+                    
+
+
+            
+        except Exception as ex:
+            print(ex)     
+             
             
 
             
