@@ -322,10 +322,11 @@ div.content hr {
 
 .link-preview {
     border: 1px dotted #ccc;
-    margin: 5px 0 5px 0;
     background: #ecf3f9;
     border-radius:10px;
-    display:block
+    display:block;
+    margin: 10px auto 5px auto;
+    width: 75%;
 }
 
 .link-preview > a {
