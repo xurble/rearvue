@@ -291,6 +291,10 @@ img.poster_image {
     
 }
 
+div.post img {
+    max-width:100%;
+}
+
 div.fp_links ul {
     margin-bottom: 20px;
     margin-top:0px;

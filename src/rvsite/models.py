@@ -132,9 +132,9 @@ class RVLink(models.Model):
     item        = models.ForeignKey(RVItem, on_delete=models.CASCADE)
 
     url         = models.CharField(max_length=512)
-    title       = models.CharField(max_length=256,blank=True,default='')
+    title       = models.CharField(max_length=512,blank=True,default='')
     description = models.TextField(blank=True, default='') 
-    image       = models.CharField(max_length=256,blank=True,default='')
+    image       = models.CharField(max_length=512,blank=True,default='')
     context     = models.BooleanField(default=False)
 
     def make_image_path(self,file_type):

@@ -62,12 +62,13 @@ def update_rss():
             item.raw_data = str(p.id)
             
             
-            if p.enclosures.count == 0 or item.mirror_state == 1:
+            if p.enclosures.count == 0 and item.mirror_state == 0:
                 item.mirror_state = 1
                 item.save()
             else:
                 item.save()
-                mirror_rss(specific_item=item)
+                if item.mirror_state == 0:
+                    mirror_rss(specific_item=item)
         
         
         service.last_checked = datetime.datetime.now()
@@ -162,6 +163,13 @@ def find_rss_links(specific_item=None):
                 if l.has_attr("href"):
                     if l.text.startswith("http"):
                         last_link = l["href"]
+                        
+            # Check for properly cited blockquotes  
+            if last_link == "":
+                for l in soup.findAll(name="blockquote"):
+                    if l.has_attr("cite"):
+                        last_link = l["cite"]
+                
                     
     
             if last_link != "":        
