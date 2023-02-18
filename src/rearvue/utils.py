@@ -114,7 +114,7 @@ def final_destination(url):
     while True:
         print(url)
     
-        rr = requests.get(url)
+        rr = requests.get(url,timeout=30, verify=False)
         if rr.url != url:
             # we got a redirect and followed it, see how that works out for us
             result = rr.url

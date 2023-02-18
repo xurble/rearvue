@@ -24,10 +24,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 if __name__ == "__main__":
 
-    from rearvue.utils import final_destination
-    print(">>" + final_destination("http://is.gd/9l5IO")) 
-    exit()
-
 
     print("Updating Twitter")
     try:
