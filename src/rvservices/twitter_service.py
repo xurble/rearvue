@@ -111,17 +111,27 @@ def find_twitter_links(specific_item=None):
             
             if "urls" in tweet["entities"]:
             
+                if len(tweet["entities"]["urls"]) == 0:
+                    urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', item.caption)
+                    for u in urls:
+                        final = utils.final_destination(u)
+                        short = u.split("://")[1]
+                        tweet["entities"]["urls"].append({"expanded_url": final})
+                        if '>{}</a>'.format(short) not in item.caption:
+                            item.caption = item.caption.replace(u, '<a href="{}">{}</a>'.format(final, short))
+
+            
                 try:
+                    item.rvlink_set.all().delete()
                     for u in tweet["entities"]["urls"]:
                         
                         if not u["expanded_url"].startswith("https://twitter.com"):
-                            try:
-                                link = item.rvlink_set.filter(url=u["expanded_url"])[0]
-                            except:
-                                print("NEW PREVIEW")
-                                link = RVLink()
-                                link.url=u["expanded_url"]
-                                link.item = item
+                        
+                                
+                        
+                            link = RVLink()
+                            link.url=utils.final_destination(u["expanded_url"])
+                            link.item = item
                         
                             print (link.url)
                             p = webpreview(link.url, timeout=1000)
@@ -146,6 +156,7 @@ def find_twitter_links(specific_item=None):
                 except Exception as ex:
                     print (ex)
                     pass
+            
             item.mirror_state = 2
             item.save()
         except Exception as ex:

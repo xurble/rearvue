@@ -157,7 +157,7 @@ def find_rss_links(specific_item=None):
             # Find all the links 
             # we're going to try and figure out
             # the most important one to highlight        
-            soup = BeautifulSoup(item.caption)
+            soup = BeautifulSoup(item.caption, "html5lib")
             links = []
             for l in soup.findAll(name="a"):
                 if l.has_attr("href"):
@@ -184,6 +184,7 @@ def find_rss_links(specific_item=None):
                     link.item = item
         
                 print (link.url)
+                link.url = utils.final_destination(link.url)
                 p = webpreview(link.url, timeout=1000)
             
                 if not p.image is None and p.image != "":

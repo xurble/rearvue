@@ -9,3 +9,4 @@ proctitle
 gunicorn
 webpreview
 instagram-basic-display
+html5lib

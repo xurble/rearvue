@@ -4,6 +4,9 @@ from django.http import HttpResponseNotFound,HttpResponseForbidden
 
 import os
 import random
+import requests
+from bs4 import BeautifulSoup
+
 
 from datetime import datetime
 
@@ -101,5 +104,41 @@ def get_extension(from_url):
 
     noquery = from_url.split("?")[-1]
     return noquery.split(".")[-1]
+    
+
+
+def final_destination(url):
+
+    result = url
+
+    while True:
+        print(url)
+    
+        rr = requests.get(url)
+        if rr.url != url:
+            # we got a redirect and followed it, see how that works out for us
+            result = rr.url
+            url = rr.url
+        else:
+            # we got some content
+            page = rr.content.decode("utf-8")
+            soup = BeautifulSoup(page, "html5lib")
+            
+            keepgoing = False
+            # meta refresh?
+            for m in soup.findAll("meta"):
+                if m.has_attr("http-equiv") and m["http-equiv"] == "refresh":
+                    if m.has_attr("content") and "url=" in m["content"]:
+                        result = m["content"].split("url=")[1]
+                        url = result
+                        keepgoing = True
+                        break
+            
+            if not keepgoing:
+                return result       
+            
+
+
+
         
 	

@@ -19,9 +19,11 @@
         <h3>On This Day</h3>
         <div class="row">
         {% for i in other_items %}
+            {% if i.rvmedia_set.count > 0 %}
             <div class="col-xs-2">
                 <a href="{% url "show_item" year=i.date_created.year month=i.date_created.month day=i.date_created.day  iid=i.id %}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
             </div>
+            {% endif %}
         {% endfor %}
         </div>
     {% endif %}

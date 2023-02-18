@@ -26,6 +26,8 @@ flickrapi==2.4.0
     # via -r requirements.in
 gunicorn==20.1.0
     # via -r requirements.in
+html5lib==1.1
+    # via -r requirements.in
 idna==3.4
     # via requests
 instagram-basic-display==1.0.5
@@ -68,6 +70,7 @@ sgmllib3k==1.0.0
 six==1.16.0
     # via
     #   flickrapi
+    #   html5lib
     #   python-dateutil
 soupsieve==2.4
     # via beautifulsoup4
@@ -75,6 +78,8 @@ sqlparse==0.4.3
     # via django
 urllib3==1.26.14
     # via requests
+webencodings==0.5.1
+    # via html5lib
 webpreview==1.7.2
     # via -r requirements.in
 

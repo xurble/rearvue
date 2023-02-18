@@ -119,7 +119,7 @@ def show_day(request, year, month,day):
     
     items = RVItem.objects.filter(date_created=the_date).filter(mirror_state=1).filter(public=True).order_by("datetime_created")
  
-    other_items = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).exclude(date_created__year=int(year))
+    other_items = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
     
     
     request.vals["items"] = items
@@ -139,7 +139,7 @@ def show_item(request, year, month, day, iid):
 
     request.vals["item"] = get_object_or_404(RVItem,id=int(iid))  
 
-    request.vals["other_items"] = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).exclude(date_created__year=int(year))
+    request.vals["other_items"] = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
   
     
     return render(request, "rvsite/item.html",request.vals)    
