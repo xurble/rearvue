@@ -160,7 +160,7 @@ def find_twitter_links(specific_item=None):
             item.mirror_state = 2
             item.save()
         except Exception as ex:
-            print(exs)
+            print(ex)
                     
                     
                 
