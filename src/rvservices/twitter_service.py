@@ -99,12 +99,15 @@ def import_archive(service, data):
 def find_twitter_links(specific_item=None):
 
 
+    
     if specific_item is not None:
         queue = [specific_item]
     else:
         queue = RVItem.objects.filter(mirror_state=1).filter(service__type="twitter").filter(service__live=True)[:500]
         
     for item in queue:
+    
+        print("Twitter Linking {}".format(item.id))
     
         try:    
             tweet = json.loads(item.raw_data)
@@ -114,11 +117,12 @@ def find_twitter_links(specific_item=None):
                 if len(tweet["entities"]["urls"]) == 0:
                     urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', item.caption)
                     for u in urls:
-                        final = utils.final_destination(u)
-                        short = u.split("://")[1]
-                        tweet["entities"]["urls"].append({"expanded_url": final})
-                        if '>{}</a>'.format(short) not in item.caption:
-                            item.caption = item.caption.replace(u, '<a href="{}">{}</a>'.format(final, short))
+                        if not u.startswith("https://twitter.com"):  # things we linked ourselves
+                            final = utils.final_destination(u)
+                            short = u.split("://")[1]
+                            tweet["entities"]["urls"].append({"expanded_url": final})
+                            if '>{}</a>'.format(short) not in item.caption:
+                                item.caption = item.caption.replace(u, '<a href="{}">{}</a>'.format(final, short))
 
             
                 try:
