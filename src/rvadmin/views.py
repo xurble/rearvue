@@ -13,7 +13,7 @@ import json
 
 from django.conf import settings
 
-from rearvue.utils import admin_page
+from rearvue.utils import admin_page, make_link
 
 from rvsite.models import *
 
@@ -55,6 +55,27 @@ def fix_item(request, iid):
         
         
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
+    
+    
+@login_required
+@admin_page
+def contextualize_item(request, iid):
+    
+    dbitem = RVItem.objects.get(id=iid)
+    
+    dbitem.rvlink_set.filter(is_context=True).delete()
+    
+    (ok, msg) = make_link(request.POST["link"], dbitem, is_context=True)
+
+
+    if ok:
+        messages.info(request, "OK")
+    else:
+        messages.warning(request, msg)
+        
+        
+    return HttpResponseRedirect(request.META["HTTP_REFERER"])
+
 
 
 @login_required

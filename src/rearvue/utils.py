@@ -6,8 +6,8 @@ import os
 import random
 import requests
 from bs4 import BeautifulSoup
-
-
+from rvsite.models import RVLink
+from webpreview import webpreview
 from datetime import datetime
 
 MONTH_LIST = ["X","January","February","March","April","May","June","July","August","September","October","November","December"]
@@ -106,6 +106,42 @@ def get_extension(from_url):
     return noquery.split(".")[-1]
     
 
+
+def make_link(link_url, item, is_context=False):
+
+    try:
+    
+        link = RVLink()
+        link.url = final_destination(link_url)
+        link.item = item
+        link.is_context = is_context
+
+        print (link.url)
+
+        p = webpreview(link.url, timeout=1000)
+    
+        if p.image is not None and p.image != "" and p.image != "None":
+            ret = requests.get(p.image, timeout=30)
+            if not ret.ok:
+                p.image = ""
+            
+        # Cloudflare :(
+        if p.title != "Access denied":
+
+            link.title = p.title
+            link.image = p.image
+            link.description = p.description
+
+            if link.title is None: link.title = ""
+            if link.image is None: link.image = ""
+            if link.description is None: link.description = ""
+
+            link.save()
+            return (True, "👍")
+        else:
+            return (False, "Access Denied")
+    except Exception as ex:
+        return (False, str(ex))
 
 def final_destination(url):
 

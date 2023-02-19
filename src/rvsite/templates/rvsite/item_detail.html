@@ -54,7 +54,7 @@
                 </div>
                 {% endif %}
                 
-                {% for l in item.rvlink_set.all %}
+                {% for l in item.orginal_links %}
                     <div class="link-preview">
                         <a href="{{l.url}}">
                             {% if l.image != "" %}

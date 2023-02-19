@@ -135,15 +135,14 @@ body {
 }
 
 
-a, a:visited, a:hover {
+a:not(.btn), a:not(.btn):visited, a:not(.btn):hover {
     color:#3D85C6;
     text-decoration: underline;
 }
 
-
-
-
-
+a:not(.btn):hover {
+    text-decoration: none;
+}
 
 
 

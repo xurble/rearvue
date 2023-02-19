@@ -126,37 +126,11 @@ def find_twitter_links(specific_item=None):
 
             
                 try:
-                    item.rvlink_set.all().delete()
+                    item.rvlink_set.filter(is_context=False).delete()
                     for u in tweet["entities"]["urls"]:
                         
                         if not u["expanded_url"].startswith("https://twitter.com"):
-                        
-                                
-                        
-                            link = RVLink()
-                            link.url=utils.final_destination(u["expanded_url"])
-                            link.item = item
-                        
-                            print (link.url)
-                            p = webpreview(link.url, timeout=1000)
-                            
-                            if p.image != "":
-                                ret = requests.get(p.image, timeout=30)
-                                if not ret.ok:
-                                    p.image = ""
-                                    
-                            # Cloudflare :(
-                            if p.title != "Access denied":
-                    
-                                link.title = p.title
-                                link.image = p.image
-                                link.description = p.description
-                        
-                                if link.title is None: link.title = ""
-                                if link.image is None: link.image = ""
-                                if link.description is None: link.description = ""
-                    
-                                link.save()
+                            utils.make_link(u["expanded_url"], item)                        
                 except Exception as ex:
                     print (ex)
                     pass

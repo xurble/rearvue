@@ -16,6 +16,7 @@ urlpatterns = [
     url(r'^$', admin_index, name='admin_index'),
     
     url(r'^fix_item/(?P<iid>.*)/$', fix_item, name='fix_item'),
+    url(r'^contextualize_item/(?P<iid>.*)/$', contextualize_item, name='contextualize_item'),
 
 
 ]

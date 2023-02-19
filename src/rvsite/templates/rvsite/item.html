@@ -5,12 +5,35 @@
 
     {% if user.is_superuser %}
         <div class="rvadmin link">
-            <a href="{% url 'fix_item' iid=item.id %}">Fix</a>
+            <h4>Admin</h4>
+            <a href="{% url 'fix_item' iid=item.id %}" class="btn btn-primary">Fix</a>
+            <br><br>
+            <form method="POST" action="{% url 'contextualize_item' iid=item.id %}">
+                {% csrf_token %}
+                <input type="text" name="link" placeholder="Add Context URL" class="form-control">
+            </form>
+            <br>
         </div>
     {% endif %}
     
     {% include "rvsite/item_detail.html" with item=item %}
 
+    {% if item.context_links.count > 0 %}
+        <hr>
+        <h3>Context</h3>    
+    {% endif %}
+    {% for l in item.context_links %}
+        <div class="link-preview">
+            <a href="{{l.url}}">
+                {% if l.image != "" %}
+                    <img src="{{l.image}}" alt="Site Logo">
+                {% endif %}
+                <h4>{{l.title}}</h4>
+                <p>{{l.description}}</p>
+            </a>
+        </div>
+    {% endfor %}
+    
 
     <hr>
 

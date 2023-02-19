@@ -113,6 +113,14 @@ class RVItem(models.Model):
     def original_media(self):
         return self.rvmedia_set.first().original_media
 
+
+    @property
+    def orginal_links(self):
+        return self.rvlink_set.filter(is_context=False)
+
+    @property
+    def context_links(self):
+        return self.rvlink_set.filter(is_context=True)
     
         
         
@@ -135,7 +143,7 @@ class RVLink(models.Model):
     title       = models.CharField(max_length=512,blank=True,default='')
     description = models.TextField(blank=True, default='') 
     image       = models.CharField(max_length=512,blank=True,default='')
-    context     = models.BooleanField(default=False)
+    is_context  = models.BooleanField(default=False)
 
     def make_image_path(self,file_type):
     
