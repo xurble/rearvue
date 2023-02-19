@@ -90,7 +90,7 @@ def import_archive(service, data):
         
             if "media" in tweet["entities"] and item.mirror_state == 0:
                 item.save()
-                mirror_twitter(specific_item=item)
+                # mirror_twitter(specific_item=item)
             else:
                 item.mirror_state = 1
                 item.save()
@@ -103,7 +103,7 @@ def find_twitter_links(specific_item=None):
     if specific_item is not None:
         queue = [specific_item]
     else:
-        queue = RVItem.objects.filter(mirror_state=1).filter(service__type="twitter").filter(service__live=True)[:500]
+        queue = RVItem.objects.filter(mirror_state=1).filter(service__type="twitter").filter(service__live=True)[:100]
         
     for item in queue:
     
