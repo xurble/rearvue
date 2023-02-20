@@ -36,7 +36,7 @@ def update_rss():
     
         #make sure we are actually crawling this feed
         try:
-            s = Source.objects.get(feed_url=service.auth_token)  #this is a cheesy place to up it but
+            s = Source.objects.get(feed_url=service.auth_token)  #this is a cheesy place to put it but
         except:
             s = Source()
             s.feed_url = service.auth_token

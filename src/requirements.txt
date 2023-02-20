@@ -18,7 +18,7 @@ django==3.2.18
     # via
     #   -r requirements.in
     #   django-feed-reader
-django-feed-reader==1.0.4
+django-feed-reader==1.0.5
     # via -r requirements.in
 feedparser==6.0.10
     # via django-feed-reader

@@ -25,12 +25,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 if __name__ == "__main__":
 
 
-    print("Updating Twitter")
-    try:
-        mirror_twitter()
-        find_twitter_links()
-    except Exception as ex:
-        print(ex)
 
     print("Updating RSS")
     try:
@@ -41,6 +35,14 @@ if __name__ == "__main__":
     try:
         mirror_rss()
         find_rss_links()
+    except Exception as ex:
+        print(ex)
+
+
+    print("Updating Twitter")
+    try:
+        mirror_twitter()
+        find_twitter_links()
     except Exception as ex:
         print(ex)
 
