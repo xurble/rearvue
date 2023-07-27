@@ -12,7 +12,7 @@ Very, very rough and ready.
 |----------|:-------------:|:----------:|
 |Twitter   | ✅            | ❌         |
 |Flickr    | ✅            | ✅         |
-|RSS       | ❌            | ✅         |
+|RSS       | ✅ (*)        | ✅         |
 |Instagram | ✅            | ✅         |
 
 Services that can be imported using RSS
@@ -20,3 +20,5 @@ Services that can be imported using RSS
 - Github
 - Mastodon
 
+
+_*_ Can only import full archives if the source feed supports pagination.

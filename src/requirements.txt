@@ -4,17 +4,17 @@
 #
 #    pip-compile --output-file=requirements.txt requirements.in
 #
-asgiref==3.6.0
+asgiref==3.7.2
     # via django
-beautifulsoup4==4.11.2
+beautifulsoup4==4.12.2
     # via
     #   django-feed-reader
     #   webpreview
 certifi==2023.7.22
     # via requests
-charset-normalizer==3.0.1
+charset-normalizer==3.2.0
     # via requests
-django==3.2.18
+django==4.2.3
     # via
     #   -r requirements.in
     #   django-feed-reader
@@ -24,19 +24,21 @@ feedparser==6.0.10
     # via django-feed-reader
 flickrapi==2.4.0
     # via -r requirements.in
-gunicorn==20.1.0
+gunicorn==21.2.0
     # via -r requirements.in
 html5lib==1.1
     # via -r requirements.in
 idna==3.4
     # via requests
-instagram-basic-display==1.0.5
+instagram-basic-display==1.2.0
     # via -r requirements.in
 mysqlclient==2.1.1
     # via -r requirements.in
 oauthlib==3.2.2
     # via requests-oauthlib
-pillow==9.4.0
+packaging==23.1
+    # via gunicorn
+pillow==10.0.0
     # via -r requirements.in
 proctitle==0.1.6
     # via -r requirements.in
@@ -44,11 +46,9 @@ pyrfc3339==1.1
     # via django-feed-reader
 python-dateutil==2.8.2
     # via -r requirements.in
-pytz==2022.7.1
-    # via
-    #   django
-    #   pyrfc3339
-requests==2.28.2
+pytz==2023.3
+    # via pyrfc3339
+requests==2.31.0
     # via
     #   -r requirements.in
     #   django-feed-reader
@@ -59,7 +59,7 @@ requests==2.28.2
     #   webpreview
 requests-oauthlib==1.3.1
     # via flickrapi
-requests-toolbelt==0.10.1
+requests-toolbelt==1.0.0
     # via flickrapi
 setproctitle==1.3.2
     # via proctitle
@@ -72,16 +72,15 @@ six==1.16.0
     #   flickrapi
     #   html5lib
     #   python-dateutil
-soupsieve==2.4
+soupsieve==2.4.1
     # via beautifulsoup4
-sqlparse==0.4.3
+sqlparse==0.4.4
     # via django
-urllib3==1.26.14
+typing-extensions==4.7.1
+    # via asgiref
+urllib3==2.0.4
     # via requests
 webencodings==0.5.1
     # via html5lib
 webpreview==1.7.2
     # via -r requirements.in
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools
