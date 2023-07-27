@@ -1,5 +1,5 @@
-Django~=3.2.0
-mysqlclient
+Django~=4.2.0
+mysqlclient==2.1.1
 Pillow
 python-dateutil
 flickrapi

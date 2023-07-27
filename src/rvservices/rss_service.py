@@ -131,6 +131,25 @@ def mirror_rss(specific_item=None):
                         target_path = utils.make_full_path(output_path)
 
                         img.save(target_path)
+                elif e.type.startswith("video/"):
+                    ret = requests.get(e.href, timeout=30, verify=False)
+                    rvm.media_type = 2
+                    ext = e.type.split("/")[-1]
+                    
+                    if ret.ok:
+
+                        output_path = rvm.make_original_path(ext)
+        
+                        target_path = utils.make_full_path(output_path)
+    
+                        utils.make_folder(target_path)
+
+                        fh = open(target_path,"wb")
+                        fh.write(ret.content)
+                        fh.close()
+
+
+                
     
 
                 rvm.save()
