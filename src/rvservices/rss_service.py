@@ -136,6 +136,9 @@ def mirror_rss(specific_item=None):
                     rvm.media_type = 2
                     ext = e.type.split("/")[-1]
                     
+                    if e.medium == "image":
+                        rvm.media_type = 3
+                    
                     if ret.ok:
 
                         output_path = rvm.make_original_path(ext)

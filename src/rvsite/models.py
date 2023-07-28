@@ -162,7 +162,7 @@ class RVMedia(models.Model):
     original_media   = models.CharField(max_length=256,blank=True,default='')
 
     primary_media    = models.CharField(max_length=256,blank=True,default='')
-    media_type       = models.IntegerField(default=0,choices=((0,"None"),(1,"Image"),(2,"Video")))
+    media_type       = models.IntegerField(default=0,choices=((0,"None"), (1,"Image"), (2,"Video"), (3, "Autoplaying Video")))
     thumbnail        = models.CharField(max_length=256,blank=True,default='')
 
 
