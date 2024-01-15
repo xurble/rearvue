@@ -51,7 +51,7 @@
                     {% elif item.media_type == 2 %}
                         <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls{% if item.thumbnail != "" %} poster="/{{item.thumbnail}}"{% endif %}></video>
                     {% elif item.media_type == 3 %}
-                        <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" autoplay loop></video>
+                        <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" autoplay loop playsinline></video>
                     {% endif %}    
                 </div>
                 {% endif %}
