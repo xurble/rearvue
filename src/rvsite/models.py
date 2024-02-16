@@ -8,19 +8,19 @@ import datetime
 class RVDomain(models.Model):
     name       = models.CharField(max_length=32,unique=True)
     alt_domain = models.CharField(max_length=128,blank=True,default='',db_index=True)
-    
+
     min_year      = models.IntegerField(default=0)
     max_year      = models.IntegerField(default=0)
-    
+
     owner         = models.ForeignKey(User, on_delete=models.CASCADE)
-    
+
     display_name  = models.CharField(max_length=128,default='RearVue')
     poster_image  = models.ForeignKey('RVItem',null=True,blank=True, on_delete=models.CASCADE)
-    
+
     blurb         = models.TextField(null=True,blank=True,default='')
-    
+
     last_updated  = models.DateTimeField(null=True, blank=True)
-    
+
     def __str__(self):
         return "%s - %s" % (self.name,self.display_name)
 
@@ -38,12 +38,12 @@ class RVService(models.Model):
     auth_secret      = models.CharField(max_length=256,blank=True,default='')
     live             = models.BooleanField(default=True)
     hide_unmoderated = models.BooleanField(default=False)
-    
-    
-    
+
+
+
     def __str__(self):
-        
-        return "%s (%s) %s" % (self.name, self.type, self.username) 
+
+        return "%s (%s) %s" % (self.name, self.type, self.username)
 
 
 class RVItem(models.Model):
@@ -61,20 +61,25 @@ class RVItem(models.Model):
 
     title            = models.CharField(max_length=512,blank=True,default='')
     caption          = models.TextField(blank=True,default='')
-    
+
     public           = models.BooleanField(default=True)
 
     raw_data         = models.TextField(blank=True,default='')
 
     mirror_state     = models.IntegerField(default=0)
-    
+
     moderated        = models.BooleanField(default=False)
     edited           = models.BooleanField(default=False)
 
-
     def __str__(self):
-        return "%s - %s (%d)" % (self.remote_url,self.service.name, self.mirror_state)
+        return "%s - %s (%d)" % (self.remote_url, self.service.name, self.mirror_state)
 
+    @property
+    def display_title(self):
+        if self.title != "":
+            return self.title
+        else:
+            return str(self.date_created)
 
     @property
     def first_character(self):
@@ -83,24 +88,24 @@ class RVItem(models.Model):
         elif self.caption != "":
             return self.caption[0]
         else:
-            return "📖"    
+            return "📖"
 
     @property
     def date_created_display(self):
         return "{} {} {}".format(self.date_created.day, self.created_month_name, self.date_created.year)
-    
+
     @property
     def created_month_name(self):
         from rearvue.utils import MONTH_LIST
         return MONTH_LIST[int(self.date_created.month)]
-            
+
     @property
     def thumbnail(self):
         try:
             return self.rvmedia_set.first().thumbnail
         except:
             return ""
-        
+
     @property
     def media_type(self):
         return self.rvmedia_set.first().media_type
@@ -108,7 +113,7 @@ class RVItem(models.Model):
     @property
     def primary_media(self):
         return self.rvmedia_set.first().primary_media
-        
+
     @property
     def original_media(self):
         return self.rvmedia_set.first().original_media
@@ -121,9 +126,9 @@ class RVItem(models.Model):
     @property
     def context_links(self):
         return self.rvlink_set.filter(is_context=True)
-    
-        
-        
+
+
+
     @property
     def media_list(self):
         items = list(self.rvmedia_set.all())
@@ -131,9 +136,9 @@ class RVItem(models.Model):
         for i in items:
             i.idx = idx
             idx += 1
-        return items 
-    
-    
+        return items
+
+
 
 class RVLink(models.Model):
 
@@ -141,24 +146,24 @@ class RVLink(models.Model):
 
     url         = models.CharField(max_length=512)
     title       = models.CharField(max_length=512,blank=True,default='')
-    description = models.TextField(blank=True, default='') 
+    description = models.TextField(blank=True, default='')
     image       = models.CharField(max_length=512,blank=True,default='')
     is_context  = models.BooleanField(default=False)
 
     def make_image_path(self,file_type):
-    
+
         if "?" in file_type:
             file_type = file_type.split("?")[0]
-    
+
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_link.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.image
 
 
-        
+
 class RVMedia(models.Model):
-    
+
     item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
-    
+
     original_media   = models.CharField(max_length=256,blank=True,default='')
 
     primary_media    = models.CharField(max_length=256,blank=True,default='')
@@ -169,21 +174,21 @@ class RVMedia(models.Model):
     def make_original_path(self,file_type):
         if "?" in file_type:
             file_type = file_type.split("?")[0]
-    
+
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.original_media
-        
+
     def make_primary_path(self,file_type):
         if "?" in file_type:
             file_type = file_type.split("?")[0]
-    
+
         self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
         return self.primary_media
 
     def make_thumbnail_path(self,file_type):
         if "?" in file_type:
             file_type = file_type.split("?")[0]
-    
+
         self.thumbnail =  "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (self.item.domain.name,self.item.date_created.year,self.item.date_created.month,self.item.date_created.day,self.item.service.type,self.id,file_type)
-        return self.thumbnail 
+        return self.thumbnail
 
