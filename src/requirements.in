@@ -1,4 +1,4 @@
-Django~=4.2.0
+Django~=5.0.0
 mysqlclient==2.1.1
 Pillow
 python-dateutil
