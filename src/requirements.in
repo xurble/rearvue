@@ -1,5 +1,5 @@
 Django~=5.0.0
-mysqlclient==2.1.1
+mysql-connector-python
 Pillow
 python-dateutil
 flickrapi

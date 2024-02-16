@@ -32,7 +32,7 @@ idna==3.6
     # via requests
 instagram-basic-display==1.2.0
     # via -r requirements.in
-mysqlclient==2.1.1
+mysql-connector-python==8.3.0
     # via -r requirements.in
 oauthlib==3.2.2
     # via requests-oauthlib
