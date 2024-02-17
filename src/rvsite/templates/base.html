@@ -2,27 +2,27 @@
 <html>
 	<head>
 		<title>{{domain.display_name}}</title>
-		
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">		
+
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
  		<script type="text/javascript" src="/static/js/jquery-1.11.1.js"></script>
  		<script type="text/javascript" src="/static/js/bootstrap.js"></script>
 
 		<link href="/static/css/bootstrap.min.css" rel="stylesheet"	type="text/css">
 		<link href="/static/css/rearvue.css" rel="stylesheet" type="text/css">
-		
+
 		<link rel="shortcut icon" href="/static/images/icon.png">
         <link rel="apple-touch-icon" href="/static/images/icon.png">
 
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script> 
- 
-        
+        <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+
         {% block head %}
-        
-        
-        
+
+
+
         {% endblock %}
 	</head>
 	<body>
@@ -37,23 +37,23 @@
 
             <div class="row">
 
-            
+
                 <div class="col-sm-8 content">
-                
+
                     {% if messages %}
                         {% for message in messages %}
                         <div {% if message.tags %} class="alert alert-{{ message.tags }}"{% endif %}>{{ message }}</div>
                         {% endfor %}
                     {% endif %}
-                
+
                     {% block content %}
-    
+
                     {% endblock %}
-                    
+
                     <br style="clear:both">
                 </div>
                 <div class="col-sm-4">
-                
+
                     {% if user.is_superuser %}
                     <h2>Admin</h2>
                     <ul class="sidebar link">
@@ -61,13 +61,18 @@
                         <li><a href="/admin/">Django Admin</a></li>
                     </ul>
                     {% endif %}
-                    
+
                     <h2>About</h2>
                     <p>
                         This is an <a href="https://github.com/xurble/rearvue">automatic archive</a> of posts made by {{ domain.owner.get_full_name }}
                         on various services around the internet.
+
+                        {% if domain.poster_image %}
+                            <a href="{% url "show_item" year=domain.poster_image.date_created.year month=domain.poster_image.date_created.month day=domain.poster_image.date_created.day  iid=domain.poster_image.id %}"><img src="/{{domain.poster_image.thumbnail}}" alt="Thumbnail" title="{{ domain.poster_image.title }}" style="margin:6px 0 0 0;max-width:100%"></a>
+                        {% endif %}
+
                     </p>.
-                
+
                     <h2>Sources</h2>
                         <!-- todo: auto-generate this -->
                         <ul class="sidebar link">
@@ -97,18 +102,18 @@
                     </ul>
 
                 </div>
-            
+
             </div>
-            
+
 
         </div>
 
         <footer>
-            Copyright &copy; {{ domain.owner.get_full_name }} {{ domain.min_year }} - {{ domain.max_year }}.  Last updated {{ domain.last_updated }}.
+            Copyright &copy; {{ domain.owner.get_full_name }} {{ domain.min_year }} - {{ domain.max_year }}.  Last updated {{ domain.last_updated }}
         </footer>
 
 
-        
+
         <script>
 
     $.ajaxSetup({

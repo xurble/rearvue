@@ -1,0 +1,25 @@
+{% load rv_filters %}<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title>{{domain.display_name}}</title>
+        <link>https://{{domain.alt_domain}}</link>
+        <description>This is an automatic archive of posts made by {{ domain.owner.get_full_name }} on various services around the internet.</description>
+    {% for i in items %}
+        <item>
+            {% if i.title %}
+                <title>{{i.title}}</title>
+            {% endif %}
+            <link>{{i.remote_url}}</link>
+            <author>{{domain.owner.get_full_name}}</author>
+            <pubDate>{{i.datetime_created|feed_datetime}}</pubDate>
+            <description>
+                {{ i.display_caption }}
+            </description>
+            <guid>{{domain.alt_domain}}-{{ i.id }}</guid>
+        {% for m in i.rvmedia_set.all %}
+            <media:content url="https://{{domain.alt_domain}}/{{i.primary_media}}" type="{{m.mime_type}}" medium="{{m.medium}}" />
+        {% endfor %}
+        </item>
+    {% endfor %}
+    </channel>
+</rss>

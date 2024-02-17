@@ -71,8 +71,11 @@ class RVItem(models.Model):
     moderated = models.BooleanField(default=False)
     edited = models.BooleanField(default=False)
 
+    class Meta:
+        ordering = ("-id", )
+
     def __str__(self):
-        return "%s - %s (%d)" % (self.remote_url, self.service.name, self.mirror_state)
+        return "%s - %s (%d)" % (self.display_title, self.service.name, self.mirror_state)
 
     @property
     def display_title(self):
@@ -80,6 +83,15 @@ class RVItem(models.Model):
             return self.title
         else:
             return str(self.date_created)
+
+    @property
+    def display_caption(self) -> str:
+        if self.service.type == "twitter":
+            if self.date_created < datetime.date(year=2009, month=1, day=1):
+                first_character = f"{self.caption[0]}".lower()
+                if first_character == f"{self.caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
+                    return f"@{self.service.username} {self.caption}"
+        return self.caption
 
     @property
     def first_character(self):
@@ -172,6 +184,25 @@ class RVMedia(models.Model):
     primary_media = models.CharField(max_length=256, blank=True, default='')
     media_type = models.IntegerField(default=0, choices=((0, "None"), (1, "Image"), (2, "Video"), (3, "Autoplaying Video")))
     thumbnail = models.CharField(max_length=256, blank=True, default='')
+
+    @property
+    def medium(self) -> str:
+        if self.media_type in [1, 3]:
+            return "image"
+        elif self.media_type == 2:
+            return "video"
+        else:
+            return "unknown"
+
+    @property
+    def mime_type(self) -> str:
+        ext = self.original_media.split(".")[-1]
+        if self.media_type == 1:
+            return f"image/{ext}"
+        elif self.media_type in [2, 3]:
+            return f"video/{ext}"
+        else:
+            return "unknown"
 
     def make_original_path(self, file_type):
         if "?" in file_type:
