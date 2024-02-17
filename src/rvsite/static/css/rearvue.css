@@ -37,6 +37,18 @@
 
 }
 
+img, video {
+    border-radius:10px;
+    box-shadow: rgba(9, 30, 66, 0.25) 0px 4px 8px -2px, rgba(9, 30, 66, 0.08) 0px 0px 0px 1px;
+}
+
+img.thumb {
+    float:left;
+    margin-right:6px;
+    margin-bottom:6px;
+    max-width:100%;
+    border-radius:5px;
+}
 
 .body {
     clear:both;
@@ -125,7 +137,7 @@ body {
 }
 
 .rvadmin {
-    border: 1px solid #ccc !important; 
+    border: 1px solid #ccc !important;
     padding: 5px;
     border-radius: 3px;
 }
@@ -137,11 +149,10 @@ body {
 
 a:not(.btn), a:not(.btn):visited, a:not(.btn):hover {
     color:#3D85C6;
-    text-decoration: underline;
 }
 
 a:not(.btn):hover {
-    text-decoration: none;
+    text-decoration: underline;
 }
 
 
@@ -169,7 +180,7 @@ html, body {
 
 footer {
     display: block;
-    text-align: center;  
+    text-align: center;
     height: 50px;
     font-size:11px;
 }
@@ -195,14 +206,14 @@ div.text-thumbnail {
     max-width:100%;
     overflow-x: hidden;
     overflow-y: hidden;
-} 
+}
 
 div.text-thumbnail h3 {
     font-size:5px;
     margin:0;
     padding:0;
     display:inline-block;
-}  
+}
 
 h2 {
     font-size:24px;
@@ -243,7 +254,7 @@ ul.sidebar {
     margin: 10px 0 40px 0;
     text-align: left;
     padding:0;
-    
+
 }
 
 ul.sidebar li a.icon {
@@ -287,11 +298,13 @@ header p {
 
 img.poster_image {
     max-width: 100%;
-    
+
 }
 
 div.post img {
     max-width:100%;
+    display: block;
+    margin: 10px auto 10px auto;
 }
 
 div.fp_links ul {
@@ -324,8 +337,8 @@ div.content hr {
     background: #ecf3f9;
     border-radius:10px;
     display:block;
-    margin: 10px auto 5px auto;
-    width: 75%;
+    margin: 15px auto 10px auto;
+    max-width:100%;
 }
 
 .link-preview > a {
@@ -333,9 +346,14 @@ div.content hr {
     text-decoration: none;
 }
 
-.link-preview img {
+.link-preview > a > img {
+    border-radius: 10px 10px 0 0;
+    box-shadow: none;
+    margin: 0 0 5px 0;
     width:100%;
-    border-radius: 10px 10px 0px 0px;
+    max-height: 200px;
+    object-fit: cover;
+    //object-position: 25% 25%;
 }
 
 .link-preview h4 {
@@ -352,9 +370,9 @@ div.content hr {
 
 
 table.month td {
-    min-width: 30px; 
-    height: 30px;  
-    text-align: center; 
+    min-width: 30px;
+    height: 30px;
+    text-align: center;
     border:1px dotted #ddd;
 
 }
@@ -388,4 +406,3 @@ ul.post-item-details li {
 ul.item-details {
     float:right;
 }
-    

@@ -5,13 +5,13 @@
                     <h3 class="link right"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.date_created_display}}</a></h3>
                 {% endif %}
                 <div class="body link">
-                    <p>{{item.caption|safe}}</p>
+                    <p>{{item.display_caption|safe}}</p>
                 </div>
 
                 {% if item.media_type > 0 %}
                     <div class="media-holder">
                     {% if item.media_type == 1 %}
-                
+
                         {% if item.rvmedia_set.count > 1 %}
                             <div id="carousel-example-generic" class="carousel slide" data-ride="carousel">
                               <!-- Indicators -->
@@ -23,11 +23,11 @@
 
                               <!-- Wrapper for slides -->
                               <div class="carousel-inner" role="listbox">
-                          
+
                                 {% for m in item.media_list %}
                                     <div class="item {% if m.idx == 0 %}active{% endif %}">
                                        <img src="/{{m.primary_media}}" alt="{{item.title}}">
-                                  
+
                                       <div class="carousel-caption">
                                             {{m.id}}
                                       </div>
@@ -44,7 +44,7 @@
                                 <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
                                 <span class="sr-only">Next</span>
                               </a>
-                            </div>                    
+                            </div>
                         {% else %}
                             <img src="/{{item.primary_media}}" alt="{{item.title}}" style="max-width:100%">
                         {% endif %}
@@ -52,25 +52,23 @@
                         <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" controls{% if item.thumbnail != "" %} poster="/{{item.thumbnail}}"{% endif %}></video>
                     {% elif item.media_type == 3 %}
                         <video src="/{{item.original_media}}" alt="{{item.title}}" style="max-width:100%" autoplay loop playsinline></video>
-                    {% endif %}    
+                    {% endif %}
                 </div>
                 {% endif %}
-                
+
                 {% for l in item.orginal_links %}
                     <div class="link-preview">
-                        <a href="{{l.url}}">
-                            {% if l.image != "" %}
-                                <img src="{{l.image}}" alt="Site Logo">
-                            {% endif %}
-                            <h4>{{l.title}}</h4>
-                            <p>{{l.description}}</p>
-                        </a>
+                        {% if l.image != "" %}
+                            <a href="{{l.url}}"><img src="{{l.image}}" alt="Site Logo" class="link-preview"></a>
+                        {% endif %}
+                        <h4><a href="{{l.url}}">{{l.title}}</a></h4>
+                        <p><a href="{{l.url}}">{{l.description}}</a></p>
                     </div>
                 {% endfor %}
-                        
+
                 <div class="post-item-details">
-                    Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a>    
+                    Posted <a href="{% url "show_day" year=item.date_created.year month=item.date_created.month day=item.date_created.day %}">{{item.date_created.day}}</a> <a href="{% url "show_month" year=item.date_created.year month=item.date_created.month %}">{{item.created_month_name}}</a> <a href="{% url "show_year" year=item.date_created.year %}">{{item.date_created.year}}</a>
                     to <a href="{{item.remote_url}}">{{item.service.name}}</a>
-                </div>      
-    
+                </div>
+
             </div>

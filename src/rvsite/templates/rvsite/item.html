@@ -15,25 +15,23 @@
             <br>
         </div>
     {% endif %}
-    
+
     {% include "rvsite/item_detail.html" with item=item %}
 
     {% if item.context_links.count > 0 %}
         <hr>
-        <h3>Context</h3>    
+        <h3>Context</h3>
     {% endif %}
     {% for l in item.context_links %}
         <div class="link-preview">
-            <a href="{{l.url}}">
-                {% if l.image != "" %}
-                    <img src="{{l.image}}" alt="Site Logo">
-                {% endif %}
-                <h4>{{l.title}}</h4>
-                <p>{{l.description}}</p>
-            </a>
+            {% if l.image != "" %}
+                <a href="{{l.url}}"><img src="{{l.image}}" alt="Site Logo" class="link-preview"></a>
+            {% endif %}
+            <h4><a href="{{l.url}}">{{l.title}}</a></h4>
+            <p><a href="{{l.url}}">{{l.description}}</a></p>
         </div>
     {% endfor %}
-    
+
 
     <hr>
 
@@ -50,7 +48,7 @@
         {% endfor %}
         </div>
     {% endif %}
-    
+
 
 
 

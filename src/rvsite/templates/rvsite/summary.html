@@ -7,7 +7,7 @@
             {% if domain.poster_image %}
                 <img class="poster_image" src="/{{domain.poster_image.primary_media}}">
             {% endif %}
-            
+
         </div>
         <div class="col-sm-3">
         </div>
@@ -24,11 +24,11 @@
     <div class="row">
         {% for i in recent %}
         <div class="col-xs-4 col-sm-2 link">
-            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
+            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" class="thumbnail"></a>
         </div>
         {% endfor %}
     </div>
-     
+
     <div class="row">
         <div class="col-xs-12">
            <h3>Last Year</h3>
@@ -37,7 +37,7 @@
     <div class="row">
         {% for i in last_year %}
         <div class="col-xs-4 col-sm-2 link">
-            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
+            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" class="thumbnail"></a>
         </div>
         {% endfor %}
     </div>
@@ -50,7 +50,7 @@
     <div class="row">
         {% for i in five_years %}
         <div class="col-xs-4 col-sm-2 link">
-            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" style="float:left;margin-right:6px;margin-bottom:6px;max-width:100%"></a>
+            <a href="{% url "show_day" year=i.date_created.year month=i.date_created.month day=i.date_created.day%}"><img src="/{{i.thumbnail}}" alt="Thumbnail" title="{{ i.title }}" class="thumbnail"></a>
         </div>
         {% endfor %}
     </div>
