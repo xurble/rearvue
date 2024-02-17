@@ -14,6 +14,8 @@
 		<link rel="shortcut icon" href="/static/images/icon.png">
         <link rel="apple-touch-icon" href="/static/images/icon.png">
 
+        <link rel="alternate" type="application/rss+xml" title="{{domain.display_name}}" href="/media/{{domain.name}}/rss.xml">
+
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
@@ -101,6 +103,10 @@
                         {% endfor %}
                     </ul>
 
+                    <h2>Feed</h2>
+                    <ul class="sidebar link archive">
+                        <li><a href="/media/{{domain.name}}/rss.xml">RSS</a></li>
+                    </ul>
                 </div>
 
             </div>
