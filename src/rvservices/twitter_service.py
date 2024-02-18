@@ -24,6 +24,7 @@ def fix_twitter_item(itemid):
     except Exception as ex:
         return (False, str(ex))
 
+
 def import_archive(service, data):
 
     for post in data:
@@ -32,17 +33,15 @@ def import_archive(service, data):
         if not tweet["full_text"].startswith("RT @") and not tweet["full_text"].startswith("@"):
             try:
                 item = RVItem.objects.filter(service=service).filter(item_id=tweet["id"])[0]
-            except:
+            except Exception:
                 print("NEW!")
                 item = RVItem(item_id=tweet["id"], service=service, domain=service.domain)
 
             item.caption = tweet["full_text"]
 
-
             for n in reversed(tweet["entities"]["user_mentions"]):
                 # go backwards to avoid trashing things by moving things around
                 item.caption = item.caption[:int(n["indices"][0])] + "<a title='{n}' href='https://twitter.com/{u}/'>@{u}</a>".format(u=n["screen_name"], n=n["name"]) + item.caption[int(n["indices"][1]):]
-
 
             for u in tweet["entities"]["urls"]:
                 if u["expanded_url"].startswith("https://twitter.com/"):
@@ -222,7 +221,6 @@ def mirror_twitter(specific_item=None):
                                 br = int(v["bitrate"])
                                 best = v
 
-
                     if best is not None:
                         ret = requests.get(best["url"], timeout=30, verify=False)
                         rvm.media_type = 2
@@ -235,11 +233,11 @@ def mirror_twitter(specific_item=None):
 
                             utils.make_folder(target_path)
 
-                            fh = open(target_path,"wb")
+                            fh = open(target_path, "wb")
                             fh.write(ret.content)
                             fh.close()
 
-                            #for twitter original and priamary are the same
+                            # for twitter original and priamary are the same
                             rvm.primary_media = rvm.original_media
 
                             ret = requests.get(m["media_url_https"], timeout=30, verify=False)
@@ -253,14 +251,9 @@ def mirror_twitter(specific_item=None):
 
                                 utils.make_folder(target_path)
 
-                                fh = open(target_path,"wb")
+                                fh = open(target_path, "wb")
                                 fh.write(ret.content)
                                 fh.close()
-
-
-
-
-
 
                 rvm.save()
 
