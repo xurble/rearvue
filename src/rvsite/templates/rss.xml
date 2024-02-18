@@ -17,7 +17,7 @@
             </description>
             <guid>{{domain.alt_domain}}-{{ i.id }}</guid>
         {% for m in i.rvmedia_set.all %}
-            <media:content url="https://{{domain.alt_domain}}/{{i.original_media}}" type="{{m.mime_type}}" medium="{{m.medium}}" />
+            <media:content url="https://{{domain.alt_domain}}/{{m.original_media}}" type="{{m.mime_type}}" medium="{{m.medium}}" />
         {% endfor %}
         </item>
     {% endfor %}
