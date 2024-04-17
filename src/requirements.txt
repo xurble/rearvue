@@ -24,7 +24,7 @@ feedparser==6.0.11
     # via django-feed-reader
 flickrapi==2.4.0
     # via -r requirements.in
-gunicorn==21.2.0
+gunicorn==22.0.0
     # via -r requirements.in
 html5lib==1.1
     # via -r requirements.in
