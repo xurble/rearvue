@@ -70,7 +70,7 @@
                         on various services around the internet.
 
                         {% if domain.poster_image %}
-                            <a href="{% url "show_item" year=domain.poster_image.date_created.year month=domain.poster_image.date_created.month day=domain.poster_image.date_created.day  iid=domain.poster_image.id %}"><img src="/{{domain.poster_image.thumbnail}}" alt="Thumbnail" title="{{ domain.poster_image.title }}" style="margin:6px 0 0 0;max-width:100%"></a>
+                            <a href="{% url "show_item" year=domain.poster_image.date_created.year month=domain.poster_image.date_created.month day=domain.poster_image.date_created.day slug=domain.poster_image.get_slug %}"><img src="/{{domain.poster_image.thumbnail}}" alt="Thumbnail" title="{{ domain.poster_image.title }}" style="margin:6px 0 0 0;max-width:100%"></a>
                         {% endif %}
 
                     </p>.

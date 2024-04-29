@@ -1,8 +1,8 @@
             <div class="post">
                 {% if item.title != "" %}
-                    <h3 class="link"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.title}}</a></h3>
+                    <h3 class="link"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day slug=item.get_slug %}">{{item.title}}</a></h3>
                 {% else %}
-                    <h3 class="link right"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day iid=item.id %}">{{item.date_created_display}}</a></h3>
+                    <h3 class="link right"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day slug=item.get_slug %}">{{item.date_created_display}}</a></h3>
                 {% endif %}
                 <div class="body link">
                     <p>{{item.display_caption|safe}}</p>

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.text import slugify
 
 from django.contrib.auth.models import User
 
@@ -51,6 +52,8 @@ class RVItem(models.Model):
     service = models.ForeignKey(RVService, on_delete=models.CASCADE)
     domain = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
 
+    slug = models.SlugField(null=True, blank=True, db_index=True)
+
     item_id = models.CharField(max_length=128, db_index=True)
 
     date_retrieved = models.DateTimeField(auto_now_add=True)
@@ -76,6 +79,32 @@ class RVItem(models.Model):
 
     def __str__(self):
         return "%s - %s (%d)" % (self.display_title, self.service.name, self.mirror_state)
+
+    def save(self, *args, **kwargs):
+
+        super().save(*args, **kwargs)
+
+        if self.slug is None:
+
+            if self.title == '':
+                base_title = f"post-{self.id}"
+            else:
+                base_title = self.title
+
+            slug = slugify(base_title)
+            ct = 1
+            while RVItem.objects.filter(slug=slug).count() > 0:
+                ct += 1
+                slug = slugify(f"{base_title}-{ct}")
+
+            self.slug = slug
+
+        super().save(*args, **kwargs)
+
+    def get_slug(self):
+        if self.slug is None:
+            self.save()
+        return self.slug
 
     @property
     def display_title(self):

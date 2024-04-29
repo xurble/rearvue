@@ -119,7 +119,7 @@ def show_day(request, year, month, day):
 
 
 @page
-def show_item(request, year, month, day, iid):
+def show_item(request, year, month, day, slug):
 
     request.vals["month_name"] = MONTH_LIST[int(month)]
 
@@ -127,7 +127,7 @@ def show_item(request, year, month, day, iid):
     request.vals["year"] = year
     request.vals["day"] = day
 
-    request.vals["item"] = get_object_or_404(RVItem, id=int(iid))
+    request.vals["item"] = get_object_or_404(RVItem, slug=slug)
 
     other_items_rs = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
 
