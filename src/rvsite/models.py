@@ -92,6 +92,8 @@ class RVItem(models.Model):
                 base_title = self.title
 
             slug = slugify(base_title)
+            slug = slug[:47]
+
             ct = 1
             while RVItem.objects.filter(slug=slug).count() > 0:
                 ct += 1
