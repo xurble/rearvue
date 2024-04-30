@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Q
+from django.http.response import HttpResponsePermanentRedirect
+from django.urls import reverse
 
 from dateutil.relativedelta import relativedelta
 
@@ -127,7 +129,14 @@ def show_item(request, year, month, day, slug):
     request.vals["year"] = year
     request.vals["day"] = day
 
-    request.vals["item"] = get_object_or_404(RVItem, slug=slug)
+    try:
+        item = RVItem.objects.get(slug=slug)
+    except RVItem.DoesNotExist:
+        slug = f"post-{slug}"
+        item = get_object_or_404(RVItem, slug=slug)
+        return HttpResponsePermanentRedirect(reverse("show_item", args=[year, month, day, slug]))
+
+    request.vals["item"] = item
 
     other_items_rs = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
 

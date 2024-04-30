@@ -11,7 +11,6 @@ from webpreview import webpreview
 
 from rvsite.models import RVDomain, RVLink
 
-
 MONTH_LIST = ["X", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 
@@ -35,8 +34,6 @@ def page(func):
         request = args[0]
 
         domain = request.META["HTTP_HOST"]
-
-        print("Cnnection to: " + domain)
 
         try:
             request.domain = RVDomain.objects.get(name=domain)
