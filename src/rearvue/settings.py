@@ -10,15 +10,15 @@ https://docs.djangoproject.com/en/1.6/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
+import sys
 
 from . import settings_server
 
-
-
-import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 print(BASE_DIR)
 
+# Detect if running locally
+RUNNING_LOCAL = 'runserver' in sys.argv
 
 
 # Quick-start development settings - unsuitable for production
@@ -29,6 +29,8 @@ SECRET_KEY = settings_server.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = settings_server.DEBUG
+
+LOG_LOCATION = settings_server.LOG_LOCATION
 
 DATA_STORE = settings_server.DATA_STORE
 
@@ -42,7 +44,6 @@ FLICKR_SECRET = settings_server.FLICKR_SECRET
 
 INSTAGRAM_KEY =    settings_server.INSTAGRAM_KEY
 INSTAGRAM_SECRET = settings_server.INSTAGRAM_SECRET
-
 
 
 DEFAULT_DOMAIN_PROTOCOL = settings_server.DEFAULT_DOMAIN_PROTOCOL # http or https
@@ -136,3 +137,55 @@ TEMPLATES = [
             },
         },
     ]
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "root": {
+        "level": "INFO",
+        "handlers": ["console" if RUNNING_LOCAL else "file"]
+    },
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            'class': 'logging.handlers.RotatingFileHandler',
+            "filename": LOG_LOCATION,
+            'maxBytes': 1024*1024*5,  # 5 MB
+            'backupCount': 5,
+            "formatter": "colored" if RUNNING_LOCAL else "app",
+        },
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "colored",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": [],
+            "level": "INFO",
+            "propagate": True
+        },
+    },
+    "formatters": {
+        "app": {
+            "format": (
+                u"%(asctime)s [%(levelname)-8s] "
+                "(%(module)s.%(funcName)s) %(message)s"
+            ),
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "colored": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "%(log_color)s%(asctime)s [%(levelname)-8s] %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "log_colors": {
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red",
+            },
+        },
+    },
+}
