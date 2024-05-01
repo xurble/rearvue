@@ -91,13 +91,14 @@ class RVItem(models.Model):
             else:
                 base_title = self.title
 
-            slug = slugify(base_title)
-            slug = slug[:47]
+            base_title = slugify(base_title)
+            base_title = base_title[:47]
+            slug = base_title
 
             ct = 1
             while RVItem.objects.filter(slug=slug).count() > 0:
                 ct += 1
-                slug = slugify(f"{base_title}-{ct}")
+                slug = f"{base_title}-{ct}"
 
             self.slug = slug
 
