@@ -8,9 +8,12 @@
             {% include "rvsite/item_detail.html" with item=i %}
             <hr>
         {% endfor %}
-    
 
-     
+        <div class="row">
+          <div class="col-xs-6"><a href="{% url "show_month" year=prev.year month=prev.month %}">☜ Earlier</a></div>
+          <div class="col-xs-6" style="text-align:right"><a href="{% url "show_month" year=next.year month=next.month %}">Later ☞</a></div>
+        </div>
+
 
 
 

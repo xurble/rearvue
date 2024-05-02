@@ -81,11 +81,6 @@ def show_month(request, year, month):
     start_date = datetime.date(year=int(year), month=int(month), day=1)
     end_date = start_date + relativedelta(months=1)
 
-    thecal = calendar.monthcalendar(int(year), int(month))
-    for week in thecal:
-        for day in range(len(week)):
-            week[day] = [week[day], 0]
-
     items = list(RVItem.objects.filter(Q(date_created__gte=start_date) & Q(date_created__lt=end_date) & Q(mirror_state__gte=1) & Q(public=True)).order_by("datetime_created"))
 
     request.vals["month_name"] = MONTH_LIST[int(month)]
@@ -93,6 +88,8 @@ def show_month(request, year, month):
     request.vals["month"] = month
     request.vals["year"] = year
     request.vals["items"] = items
+    request.vals["next"] = start_date + relativedelta(months=1)
+    request.vals["prev"] = start_date - relativedelta(months=1)
 
     return render(request, "rvsite/month.html", request.vals)
 
