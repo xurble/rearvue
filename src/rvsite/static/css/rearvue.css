@@ -307,6 +307,14 @@ div.post img {
     margin: 10px auto 10px auto;
 }
 
+img.carousel {
+    margin:0;
+}
+
+a.carousel-control {
+    border-radius:10px;
+}
+
 div.fp_links ul {
     margin-bottom: 20px;
     margin-top:0px;

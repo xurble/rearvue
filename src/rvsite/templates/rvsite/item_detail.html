@@ -26,11 +26,7 @@
 
                                 {% for m in item.media_list %}
                                     <div class="item {% if m.idx == 0 %}active{% endif %}">
-                                       <img src="/{{m.primary_media}}" alt="{{item.title}}">
-
-                                      <div class="carousel-caption">
-                                            {{m.id}}
-                                      </div>
+                                       <img src="/{{m.primary_media}}" alt="{{item.title}}" class="carousel">
                                     </div>
                                 {% endfor %}
                               </div>
