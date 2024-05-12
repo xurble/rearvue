@@ -307,7 +307,7 @@ div.post img {
     margin: 10px auto 10px auto;
 }
 
-img.carousel {
+div.post img.carousel {
     margin:0;
 }
 
