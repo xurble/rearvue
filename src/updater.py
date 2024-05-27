@@ -94,6 +94,6 @@ if __name__ == "__main__":
         with open(rss_path, "w") as out:
             vals = {
                 "domain": domain,
-                "items": RVItem.objects.filter(service__domain=domain)[:25]
+                "items": RVItem.objects.filter(service__domain=domain).filter(public=True).order_by("-datetime_created")[:25]
             }
             out.write(render_to_string("rss.xml", vals))
