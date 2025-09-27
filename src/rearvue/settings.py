@@ -45,6 +45,9 @@ FLICKR_SECRET = settings_server.FLICKR_SECRET
 INSTAGRAM_KEY =    settings_server.INSTAGRAM_KEY
 INSTAGRAM_SECRET = settings_server.INSTAGRAM_SECRET
 
+# Facebook Graph API settings for Instagram
+FACEBOOK_ACCESS_TOKEN = getattr(settings_server, 'FACEBOOK_ACCESS_TOKEN', None)
+
 
 DEFAULT_DOMAIN_PROTOCOL = settings_server.DEFAULT_DOMAIN_PROTOCOL # http or https
 

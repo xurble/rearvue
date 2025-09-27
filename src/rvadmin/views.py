@@ -4,7 +4,8 @@ from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 
-from instagram_basic_display.InstagramBasicDisplay import InstagramBasicDisplay
+from facebook_business.api import FacebookAdsApi
+from facebook_business.adobjects.iguser import IGUser
 from flickrapi import FlickrAPI
 
 import datetime
@@ -88,55 +89,67 @@ def instagram_connect(request, iid):
         else:
             svc = get_object_or_404(RVService, id=int(iid))
 
-        #redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/?svc={service}'.format(protocol = settings.DEFAULT_DOMAIN_PROTOCOL, domain=request.domain.name, service= svc.id)
-        redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
-
-        instagram_basic_display = InstagramBasicDisplay(
-            app_id=settings.INSTAGRAM_KEY,
-            app_secret=settings.INSTAGRAM_SECRET,
-            redirect_url=redirect_uri)
-
-        return HttpResponseRedirect(instagram_basic_display.get_login_url())
+        # For Instagram Graph API, we need a Facebook App and Page access token
+        # The user needs to provide their Instagram Business/Creator account ID
+        # and a Facebook Page access token
+        
+        # Store the service ID in session for the return
+        request.session['instagram_service_id'] = svc.id
+        
+        # Redirect to a form where they can enter their Instagram account details
+        return HttpResponseRedirect("/rvadmin/instagram_setup/")
 
     else:
         return render(request,"rvadmin/instagram_connect.html",vals)
 
 
 @login_required
-def instagram_return(request):
-
-    code = request.GET.get("code","")
-
-    service = RVService.objects.filter(type="instagram").first()
-
-    redirect_uri = '{protocol}://{domain}/rvadmin/instagram_return/'.format(protocol='https', domain="xurble.org")
-
-    instagram_basic_display = InstagramBasicDisplay(
-            app_id=settings.INSTAGRAM_KEY,
-            app_secret=settings.INSTAGRAM_SECRET,
-            redirect_url=redirect_uri)
-
-    # Get the short lived access token (valid for 1 hour)
-    short_lived_token = instagram_basic_display.get_o_auth_token(code)
-
-    # Exchange this token for a long lived token (valid for 60 days)
-    long_lived_token = instagram_basic_display.get_long_lived_token(short_lived_token.get('access_token'))
-
-    token = long_lived_token["access_token"]
-
-    instagram_basic_display.set_access_token(token)
-
-    profile = instagram_basic_display.get_user_profile()
-
-    service.username = profile["username"]
-    service.userid = profile["id"]
-    service.auth_token = token
-
-    service.save()
-
-    vals = {}
-
-    return HttpResponseRedirect("/rvadmin/")  #todo return reverse
+@admin_page
+def instagram_setup(request):
+    """Setup Instagram connection with Facebook Graph API"""
+    
+    if request.method == "POST":
+        service_id = request.session.get('instagram_service_id')
+        if not service_id:
+            messages.error(request, "No service found in session")
+            return HttpResponseRedirect("/rvadmin/")
+            
+        service = get_object_or_404(RVService, id=service_id)
+        
+        # Get form data
+        instagram_account_id = request.POST.get('instagram_account_id')
+        facebook_access_token = request.POST.get('facebook_access_token')
+        
+        if not instagram_account_id or not facebook_access_token:
+            messages.error(request, "Please provide both Instagram Account ID and Facebook Access Token")
+            return render(request, "rvadmin/instagram_setup.html", {})
+        
+        try:
+            # Initialize Facebook API
+            FacebookAdsApi.init(access_token=facebook_access_token)
+            
+            # Test the connection by getting the Instagram user info
+            ig_user = IGUser(instagram_account_id)
+            user_data = ig_user.api_get(fields=['id', 'username'])
+            
+            # Update service with Instagram account details
+            service.userid = user_data['id']
+            service.username = user_data['username']
+            service.auth_token = facebook_access_token
+            service.save()
+            
+            messages.success(request, f"Successfully connected to Instagram account: @{user_data['username']}")
+            
+            # Clear session
+            del request.session['instagram_service_id']
+            
+            return HttpResponseRedirect("/rvadmin/")
+            
+        except Exception as e:
+            messages.error(request, f"Error connecting to Instagram: {str(e)}")
+            return render(request, "rvadmin/instagram_setup.html", {})
+    
+    return render(request, "rvadmin/instagram_setup.html", {})
 
 @login_required
 @admin_page

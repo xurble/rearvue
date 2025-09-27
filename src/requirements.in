@@ -5,14 +5,10 @@ python-dateutil
 flickrapi
 django-feed-reader
 requests
-webpreview
-instagram-basic-display
+git+https://github.com/xurble/webpreview
+facebook-business
 html5lib
 
-python-lsp-server
-rope
-pyflakes
-pycodestyle
 safety
 bandit
 django-debug-toolbar
@@ -22,4 +18,3 @@ colorlog
 wheel
 proctitle
 gunicorn
-PdbBBEditSupport

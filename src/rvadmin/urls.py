@@ -7,7 +7,7 @@ urlpatterns = [
     # Examples:
     
     path('instagram_connect/<int:iid>/', instagram_connect, name='instagram_connect'),
-    path('instagram_return/',instagram_return, name='instagram_return'),
+    path('instagram_setup/', instagram_setup, name='instagram_setup'),
 
     path('flickr_connect/<int:iid>/', flickr_connect, name='flickr_connect'),
     path('flickr_return/',flickr_return, name='flickr_return'),
