@@ -41,6 +41,7 @@ class RVService(models.Model):
     auth_secret = models.CharField(max_length=256, blank=True, default='')
     live = models.BooleanField(default=True)
     hide_unmoderated = models.BooleanField(default=False)
+    extra_data = models.BinaryField(blank=True, default=b'')
 
     def __str__(self):
 
