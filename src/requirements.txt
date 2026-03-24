@@ -227,7 +227,7 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.1
     # via pydantic
-urllib3==2.5.0
+urllib3==2.6.3
     # via requests
 webencodings==0.5.1
     # via html5lib
