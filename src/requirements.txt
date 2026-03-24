@@ -18,7 +18,7 @@ asgiref==3.9.2
     # via django
 attrs==25.3.0
     # via aiohttp
-authlib==1.6.4
+authlib==1.6.9
     # via safety
 bandit==1.8.6
     # via -r requirements.in
