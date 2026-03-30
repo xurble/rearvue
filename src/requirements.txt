@@ -141,7 +141,7 @@ pydantic==2.11.9
     #   safety-schemas
 pydantic-core==2.33.2
     # via pydantic
-pygments==2.19.2
+pygments==2.20.0
     # via rich
 pyrfc3339==2.1.0
     # via django-feed-reader
