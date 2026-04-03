@@ -42,7 +42,7 @@ click==8.3.0
     #   typer
 colorlog==6.9.0
     # via -r requirements.in
-cryptography==46.0.1
+cryptography==46.0.6
     # via authlib
 curlify==3.0.0
     # via facebook-business
