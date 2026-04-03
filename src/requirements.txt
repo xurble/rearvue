@@ -65,7 +65,7 @@ facebook-business==23.0.2
     # via -r requirements.in
 feedparser==6.0.12
     # via django-feed-reader
-filelock==3.19.1
+filelock==3.20.3
     # via safety
 flickrapi==2.4.0
     # via -r requirements.in
