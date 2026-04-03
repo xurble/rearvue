@@ -9,3 +9,4 @@ src/rearvue/settings_server.py
 data_store/*
 
 .venv
+db.sqlite3
