@@ -11,6 +11,7 @@
             <form method="POST" action="{% url 'contextualize_item' iid=item.id %}">
                 {% csrf_token %}
                 <input type="text" name="link" placeholder="Add Context URL" class="form-control">
+                <button type="submit" class="btn btn-default">Add context</button>
             </form>
             <br>
         </div>

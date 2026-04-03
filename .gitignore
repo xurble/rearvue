@@ -7,3 +7,5 @@ src/rv.fcgi
 src/rearvue/settings_server.py
 
 data_store/*
+
+.venv

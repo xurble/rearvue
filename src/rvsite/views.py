@@ -1,12 +1,12 @@
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Q
+from django.http import Http404
 from django.http.response import HttpResponsePermanentRedirect
 from django.urls import reverse
 
 from dateutil.relativedelta import relativedelta
 
 import datetime
-import calendar
 
 from rearvue.utils import page
 from rearvue.utils import sample_of
@@ -53,10 +53,16 @@ def show_year(request, year):
     start_date = datetime.date(year=int(year), month=1, day=1)
     end_date = datetime.date(year=int(year), month=12, day=31)
 
-    items = RVItem.objects.filter(Q(domain=request.domain) & Q(date_created__gte=start_date) & Q(date_created__lte=end_date) & Q(mirror_state__gte=1) & Q(public=True)).order_by("?")
-
+    q = (
+        Q(domain=request.domain)
+        & Q(date_created__gte=start_date)
+        & Q(date_created__lte=end_date)
+        & Q(mirror_state__gte=1)
+    )
     if request.user != request.domain.owner:
-        items.filter(public=True)
+        q &= Q(public=True)
+
+    items = RVItem.objects.filter(q).order_by("?")
 
     months = []
     for month in MONTH_LIST:
@@ -81,7 +87,16 @@ def show_month(request, year, month):
     start_date = datetime.date(year=int(year), month=int(month), day=1)
     end_date = start_date + relativedelta(months=1)
 
-    items = list(RVItem.objects.filter(Q(date_created__gte=start_date) & Q(date_created__lt=end_date) & Q(mirror_state__gte=1) & Q(public=True)).order_by("datetime_created"))
+    q = (
+        Q(domain=request.domain)
+        & Q(date_created__gte=start_date)
+        & Q(date_created__lt=end_date)
+        & Q(mirror_state__gte=1)
+    )
+    if request.user != request.domain.owner:
+        q &= Q(public=True)
+
+    items = list(RVItem.objects.filter(q).order_by("datetime_created"))
 
     request.vals["month_name"] = MONTH_LIST[int(month)]
 
@@ -105,9 +120,27 @@ def show_day(request, year, month, day):
 
     the_date = datetime.date(year=int(year), month=int(month), day=int(day))
 
-    items = RVItem.objects.filter(date_created=the_date).filter(mirror_state=1).filter(public=True).order_by("datetime_created")
+    q = (
+        Q(domain=request.domain)
+        & Q(date_created=the_date)
+        & Q(mirror_state=1)
+    )
+    if request.user != request.domain.owner:
+        q &= Q(public=True)
 
-    other_items_rs = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
+    items = RVItem.objects.filter(q).order_by("datetime_created")
+
+    other_items_rs = (
+        RVItem.objects.filter(
+            domain=request.domain,
+            date_created__day=int(day),
+            date_created__month=int(month),
+            mirror_state__gte=1,
+        )
+        .exclude(date_created__year=int(year))
+    )
+    if request.user != request.domain.owner:
+        other_items_rs = other_items_rs.filter(public=True)
 
     other_items = [o for o in other_items_rs if o.thumbnail != ""]
 
@@ -127,15 +160,45 @@ def show_item(request, year, month, day, slug):
     request.vals["day"] = day
 
     try:
-        item = RVItem.objects.get(slug=slug)
+        item = RVItem.objects.get(domain=request.domain, slug=slug)
     except RVItem.DoesNotExist:
-        slug = f"post-{slug}"
-        item = get_object_or_404(RVItem, slug=slug)
-        return HttpResponsePermanentRedirect(reverse("show_item", args=[year, month, day, slug]))
+        legacy_slug = f"post-{slug}"
+        item = get_object_or_404(RVItem, domain=request.domain, slug=legacy_slug)
+        if slug != item.slug:
+            return HttpResponsePermanentRedirect(
+                reverse("show_item", args=[year, month, day, item.slug])
+            )
+
+    if not item.public and request.user != request.domain.owner:
+        raise Http404()
+
+    y, m, d = int(year), int(month), int(day)
+    if item.date_created.year != y or item.date_created.month != m or item.date_created.day != d:
+        return HttpResponsePermanentRedirect(
+            reverse(
+                "show_item",
+                args=[
+                    item.date_created.year,
+                    item.date_created.month,
+                    item.date_created.day,
+                    item.get_slug(),
+                ],
+            )
+        )
 
     request.vals["item"] = item
 
-    other_items_rs = RVItem.objects.filter(date_created__day=int(day)).filter(date_created__month=int(month)).filter(public=True).filter(mirror_state__gte=1).exclude(date_created__year=int(year))
+    other_items_rs = (
+        RVItem.objects.filter(
+            domain=request.domain,
+            date_created__day=int(day),
+            date_created__month=int(month),
+            mirror_state__gte=1,
+        )
+        .exclude(date_created__year=int(year))
+    )
+    if request.user != request.domain.owner:
+        other_items_rs = other_items_rs.filter(public=True)
 
     other_items = [o for o in other_items_rs if o.thumbnail != ""]
 

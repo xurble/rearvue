@@ -16,10 +16,6 @@ from instaloader import Profile, Post, Instaloader
 import requests
 from PIL import Image
 
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-
-
 class InstagramInstaloaderService:
     """Instagram service using instaloader with burner account"""
     
@@ -249,7 +245,7 @@ class InstagramInstaloaderService:
                         rvm.delete()
                         continue
 
-                    ret = requests.get(media_url, timeout=30, verify=False)
+                    ret = requests.get(media_url, timeout=30, verify=True)
                     if not ret.ok:
                         print(f"Failed to download media: {ret.status_code}")
                         rvm.delete()
@@ -295,7 +291,7 @@ class InstagramInstaloaderService:
                         # Download thumbnail for video
                         thumbnail_url = media_item.get("thumbnail_url")
                         if thumbnail_url:
-                            ret = requests.get(thumbnail_url, timeout=30, verify=False)
+                            ret = requests.get(thumbnail_url, timeout=30, verify=True)
                             if ret.ok:
                                 output_path = rvm.make_thumbnail_path("jpg")
                                 target_path = utils.make_full_path(output_path)

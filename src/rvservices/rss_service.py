@@ -95,7 +95,7 @@ def mirror_rss(specific_item=None):
                 rvm.save()
 
                 if e.type.startswith("image/"):
-                    ret = requests.get(e.href, timeout=30, verify=False)
+                    ret = requests.get(e.href, timeout=30, verify=True)
                     rvm.media_type = 1
                     ext = e.type.split("/")[-1]
 
@@ -130,7 +130,7 @@ def mirror_rss(specific_item=None):
 
                         img.save(target_path)
                 elif e.type.startswith("video/"):
-                    ret = requests.get(e.href, timeout=30, verify=False)
+                    ret = requests.get(e.href, timeout=30, verify=True)
                     rvm.media_type = 2
                     ext = e.type.split("/")[-1]
 

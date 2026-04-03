@@ -128,7 +128,7 @@ def mirror_flickr():
             
 
             if data["media"] == "photo":
-                ret = requests.get(data["url_o"],timeout=30, verify=False)
+                ret = requests.get(data["url_o"],timeout=30, verify=True)
                 ext = data["url_o"].split(".")[-1]
                 rvm.media_type = 1
             else:
@@ -137,7 +137,7 @@ def mirror_flickr():
                 ret = None
                 for size in size_list:
                     if size["label"] == "Video Original":
-                        ret = requests.get(size["source"],timeout=30, verify=False)
+                        ret = requests.get(size["source"],timeout=30, verify=True)
                         rvm.media_type = 2
                         ext = "mp4" # <------ need to go get that video        
 
@@ -158,7 +158,7 @@ def mirror_flickr():
             if sz not in data:
                 sz = "url_o"
         
-            ret2 = requests.get(data[sz],timeout=30, verify=False)
+            ret2 = requests.get(data[sz],timeout=30, verify=True)
 
             ext = data[sz].split(".")[-1]
 

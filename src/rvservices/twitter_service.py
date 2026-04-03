@@ -166,14 +166,14 @@ def mirror_twitter(specific_item=None):
                 rvm.save()
 
                 if m["type"] == "photo":
-                    ret = requests.get(m["media_url_https"], timeout=30, verify=False)
+                    ret = requests.get(m["media_url_https"], timeout=30, verify=True)
                     rvm.media_type = 1
 
                     if "twitpic" in m["media_url_https"]:
                         page = ret.content.decode("utf-8")
                         page = page.split('<meta name="twitter:image" value="')[1]
                         m["media_url_https"] = page.split('"')[0]
-                        ret = requests.get(m["media_url_https"], timeout=30, verify=False)
+                        ret = requests.get(m["media_url_https"], timeout=30, verify=True)
                         m["media_url_https"] = m["media_url_https"].split("?")[0]
 
                     ext = m["media_url_https"].split("/")[-1]
@@ -222,7 +222,7 @@ def mirror_twitter(specific_item=None):
                                 best = v
 
                     if best is not None:
-                        ret = requests.get(best["url"], timeout=30, verify=False)
+                        ret = requests.get(best["url"], timeout=30, verify=True)
                         rvm.media_type = 2
                         ext = best["content_type"].split("/")[-1]
 
@@ -240,7 +240,7 @@ def mirror_twitter(specific_item=None):
                             # for twitter original and priamary are the same
                             rvm.primary_media = rvm.original_media
 
-                            ret = requests.get(m["media_url_https"], timeout=30, verify=False)
+                            ret = requests.get(m["media_url_https"], timeout=30, verify=True)
 
                             ext = m["media_url_https"].split(".")[-1]
 

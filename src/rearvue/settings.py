@@ -15,7 +15,6 @@ import sys
 from . import settings_server
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-print(BASE_DIR)
 
 # Detect if running locally
 RUNNING_LOCAL = 'runserver' in sys.argv
@@ -108,11 +107,6 @@ MEDIA_URL = '/media/'
 
 STATIC_ROOT = settings_server.STATIC_ROOT
 MEDIA_ROOT = settings_server.MEDIA_ROOT
-
-print(MEDIA_ROOT)
-
-
-
 
 
 # List of finder classes that know how to find static files in

@@ -120,7 +120,7 @@ class RVItem(models.Model):
     @property
     def display_caption(self) -> str:
         if self.service.type == "twitter":
-            if self.date_created < datetime.date(year=2009, month=1, day=1):
+            if self.date_created < datetime.date(year=2009, month=1, day=1) and self.caption:
                 first_character = f"{self.caption[0]}".lower()
                 if first_character == f"{self.caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
                     return f"@{self.service.username} {self.caption}"
@@ -153,19 +153,26 @@ class RVItem(models.Model):
 
     @property
     def media_type(self):
-        return self.rvmedia_set.first().media_type
+        m = self.rvmedia_set.first()
+        return m.media_type if m else 0
 
     @property
     def primary_media(self):
-        return self.rvmedia_set.first().primary_media
+        m = self.rvmedia_set.first()
+        return m.primary_media if m else ""
 
     @property
     def original_media(self):
-        return self.rvmedia_set.first().original_media
+        m = self.rvmedia_set.first()
+        return m.original_media if m else ""
+
+    @property
+    def original_links(self):
+        return self.rvlink_set.filter(is_context=False)
 
     @property
     def orginal_links(self):
-        return self.rvlink_set.filter(is_context=False)
+        return self.original_links
 
     @property
     def context_links(self):
@@ -196,7 +203,7 @@ class RVLink(models.Model):
         if "?" in file_type:
             file_type = file_type.split("?")[0]
 
-        self.original_media = "media/%s/%d/%02d/%02d/%s_%d_link.%s" % (
+        self.image = "media/%s/%d/%02d/%02d/%s_%d_link.%s" % (
                                     self.item.domain.name,
                                     self.item.date_created.year,
                                     self.item.date_created.month,
