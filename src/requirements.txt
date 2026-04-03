@@ -46,7 +46,7 @@ cryptography==46.0.6
     # via authlib
 curlify==3.0.0
     # via facebook-business
-django==5.0.14
+django==5.1.15
     # via
     #   -r requirements.in
     #   django-debug-toolbar
