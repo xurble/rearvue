@@ -30,6 +30,7 @@ beautifulsoup4==4.14.3
     #   webpreview
 certifi==2026.2.25
     # via
+    #   -r requirements.in
     #   httpcore
     #   httpx
     #   requests

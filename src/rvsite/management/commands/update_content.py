@@ -1,4 +1,3 @@
-import ssl
 from django.core.management.base import BaseCommand
 from django.db.models import Max, Min
 from django.utils import timezone
@@ -39,9 +38,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        # Set up SSL context to avoid certificate verification issues
-        ssl._create_default_https_context = ssl._create_unverified_context
-
         # Update RSS
         if not options['skip_rss']:
             self.stdout.write("Updating RSS")

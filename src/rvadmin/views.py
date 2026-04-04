@@ -49,6 +49,7 @@ def admin_index(request):
 
 @login_required
 @admin_page
+@require_POST
 def fix_item(request, iid):
 
     dbitem = get_object_or_404(RVItem, id=iid, domain=request.domain)
@@ -179,7 +180,7 @@ def flickr_connect(request, iid):
     if request.method == "POST":
 
         if iid == "new":
-            svc = RVService(name='Flickr Service',type="Flickr",domain=request.domain)
+            svc = RVService(name='Flickr Service', type="flickr", domain=request.domain)
             svc.save()
         else:
             svc = get_object_or_404(RVService,id=int(iid), domain=request.domain)

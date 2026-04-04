@@ -6,7 +6,10 @@
     {% if user.is_superuser %}
         <div class="rvadmin link">
             <h4>Admin</h4>
-            <a href="{% url 'fix_item' iid=item.id %}" class="btn btn-primary">Fix</a>
+            <form method="POST" action="{% url 'fix_item' iid=item.id %}" style="display:inline-block;margin-bottom:8px;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Fix</button>
+            </form>
             <br><br>
             <form method="POST" action="{% url 'contextualize_item' iid=item.id %}">
                 {% csrf_token %}

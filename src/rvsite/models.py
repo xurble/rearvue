@@ -85,7 +85,7 @@ class RVItem(models.Model):
 
         super().save(*args, **kwargs)
 
-        if self.slug is None:
+        if not self.slug:
 
             if self.title == '':
                 base_title = f"post-{self.id}"
@@ -106,7 +106,7 @@ class RVItem(models.Model):
         super().save(*args, **kwargs)
 
     def get_slug(self):
-        if self.slug is None:
+        if not self.slug:
             self.save()
         return self.slug
 

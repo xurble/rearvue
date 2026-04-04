@@ -1,5 +1,7 @@
+from datetime import timezone
+
 from django import template
-import email
+from email.utils import formatdate
 
 register = template.Library()
 
@@ -19,5 +21,10 @@ def get_first_at_index(list, index):
 
 @register.filter(name='feed_datetime')
 def feed_datetime(value):
-
-    return email.utils.formatdate(float(value.strftime('%s')))
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return formatdate(value.timestamp(), usegmt=True)

@@ -1,8 +1,7 @@
 """
-WSGI config for dogthing project.
-It exposes the WSGI callable as a module-level variable named ``application``.
-For more information on this file, see
-https://docs.djangoproject.com/en/2.2/howto/deployment/wsgi/
+WSGI config for the rearvue project.
+Exposes the WSGI callable as a module-level variable named ``application``.
+https://docs.djangoproject.com/en/stable/howto/deployment/wsgi/
 """
 
 import os

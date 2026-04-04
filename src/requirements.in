@@ -1,4 +1,5 @@
 Django
+certifi
 mysqlclient
 Pillow
 python-dateutil
