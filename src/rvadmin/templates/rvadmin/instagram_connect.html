@@ -10,7 +10,8 @@
             <div class="col-sm-12">
         
                 <h2>Connect to Instagram</h2>
-                
+                <p>Uses the official <strong>Instagram API with Instagram Login</strong> (Business or Creator account). After you click Connect, you will be sent to Instagram to authorize RearVue, then returned here.</p>
+                <p>Register the exact OAuth redirect URL in your Meta app (see README). It must match this site’s <code>/rvadmin/instagram_oauth_return/</code> URL.</p>
                 <form method="POST">
                     <input type="submit" class="btn btn-primary" value="Connect">
                     {% csrf_token %}

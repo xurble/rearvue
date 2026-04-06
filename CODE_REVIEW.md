@@ -13,10 +13,9 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Issue:** `ssl._create_default_https_context = ssl._create_unverified_context` disabled verification for the whole process.  
   **Done:** Monkey-patch removed. CA bundle: `rearvue/__init__.py` sets `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE` from certifi when unset; README documents overrides.
 
-- [ ] **Reconcile Instagram: admin “Graph API” flow vs `instaloader` worker.**  
-  **Where:** `src/rvadmin/views.py` (`instagram_setup` stores Facebook access token and IG id), `src/rvservices/instagram_service.py` (`InstagramInstaloaderService` treats `auth_token` / `auth_secret` as **burner Instagram username/password** and uses `type == "instagram"` for both flows).  
-  **Issue:** After connecting via Graph API, `auth_token` holds a long-lived Facebook Page token string, not an Instagram username. The management command still runs `InstagramInstaloaderService`, which will try to “log in” with that value as a username—behavior is inconsistent and likely broken. README claims Graph API migration, but the ingestion path is still instaloader-oriented.  
-  **Work:** Pick one supported architecture (Graph-only ingestion vs instaloader-only vs both with explicit `RVService` subtype or feature flags). Align field semantics (`auth_token`, `auth_secret`, `extra_data`) and document them. Add a smoke test or management command that validates “connected service can fetch one post” for the chosen path.
+- [x] **Reconcile Instagram: single Graph + Instagram Login pipeline.**  
+  **Where:** `src/rvservices/instagram_graph_service.py` (API fetch, mirror, `update_instagram`, `fix_instagram_item`), `src/rvservices/instagram_oauth.py`, `src/rvadmin/views.py` (OAuth), migration `0013` (token fields + `auth_token` TextField), `reset_instagram_graph` management command.  
+  **Done:** Instaloader and `facebook-business` removed from the ingestion path; `auth_token` stores long-lived Instagram user token; optional destructive reset via `reset_instagram_graph --confirm`.
 
 - [x] **Fix Dependabot configuration.**  
   **Where:** `.github/dependabot.yml`.  
@@ -66,7 +65,7 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Work:** Replace with deterministic sampling (e.g. bucket by month + random IDs with limits, or precompute “featured” items).
 
 - [ ] **Secrets in the database.**  
-  **Where:** `RVService.auth_token` / `auth_secret` (Flickr, Instagram, OAuth artifacts), `InstagramInstaloaderService` session blobs in `extra_data`.  
+  **Where:** `RVService.auth_token` / `auth_secret` (Flickr, Instagram OAuth), `extra_data` (e.g. legacy blobs).  
   **Work:** At minimum encrypt-at-rest using `django-fernet-fields` or custom encryption with a key from env. Document key rotation. Never log tokens (audit `print` statements in services).
 
 - [ ] **Production dependency hygiene.**  

@@ -6,13 +6,14 @@ from django.contrib import messages
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from facebook_business.api import FacebookAdsApi
-from facebook_business.adobjects.iguser import IGUser
 from flickrapi import FlickrAPI
 
 import json
+import secrets
+from datetime import timedelta
 
 from django.conf import settings
+from django.utils import timezone
 
 from rearvue.utils import admin_page, make_link
 
@@ -20,7 +21,8 @@ from rvsite.models import *
 
 # Create your views here.
 
-import rvservices.instagram_service
+import rvservices.instagram_graph_service
+import rvservices.instagram_oauth
 import rvservices.flickr_service
 import rvservices.rss_service
 import rvservices.twitter_service
@@ -39,6 +41,21 @@ def _safe_admin_redirect(request, fallback=None):
     return HttpResponseRedirect(fallback)
 
 
+def _instagram_oauth_redirect_uri(request):
+    """Must match a redirect URI registered on the Meta app (exact string)."""
+    fixed = getattr(settings, "INSTAGRAM_REDIRECT_URI", None)
+    if fixed:
+        return fixed.rstrip("/")
+    dom = request.domain
+    if dom.alt_domain:
+        base = dom.alt_domain.rstrip("/")
+        if not base.startswith(("http://", "https://")):
+            base = f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{base.lstrip('/')}"
+    else:
+        base = f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{dom.name}"
+    return f"{base}/rvadmin/instagram_oauth_return/"
+
+
 @login_required
 @admin_page
 def admin_index(request):
@@ -55,7 +72,7 @@ def fix_item(request, iid):
     dbitem = get_object_or_404(RVItem, id=iid, domain=request.domain)
 
     if dbitem.service.type == "instagram":
-        (ok, msg) = rvservices.instagram_service.fix_instagram_item(iid)
+        (ok, msg) = rvservices.instagram_graph_service.fix_instagram_item(iid)
     elif dbitem.service.type == "rss":
         (ok, msg) = rvservices.rss_service.fix_rss_item(iid)
     elif dbitem.service.type == "twitter":
@@ -109,15 +126,8 @@ def instagram_connect(request, iid):
         else:
             svc = get_object_or_404(RVService, id=int(iid), domain=request.domain)
 
-        # For Instagram Graph API, we need a Facebook App and Page access token
-        # The user needs to provide their Instagram Business/Creator account ID
-        # and a Facebook Page access token
-
-        # Store the service ID in session for the return
         request.session['instagram_service_id'] = svc.id
-
-        # Redirect to a form where they can enter their Instagram account details
-        return HttpResponseRedirect(reverse("instagram_setup"))
+        return HttpResponseRedirect(reverse("instagram_oauth_start"))
 
     else:
         return render(request,"rvadmin/instagram_connect.html",vals)
@@ -125,51 +135,87 @@ def instagram_connect(request, iid):
 
 @login_required
 @admin_page
-def instagram_setup(request):
-    """Setup Instagram connection with Facebook Graph API"""
+def instagram_oauth_start(request):
+    """Redirect to Instagram authorization (Instagram API with Instagram Login)."""
+    service_id = request.session.get("instagram_service_id")
+    if not service_id:
+        messages.error(request, "No Instagram service in session. Start from Connect again.")
+        return HttpResponseRedirect(reverse("admin_index"))
 
-    if request.method == "POST":
-        service_id = request.session.get('instagram_service_id')
-        if not service_id:
-            messages.error(request, "No service found in session")
-            return HttpResponseRedirect(reverse("admin_index"))
+    get_object_or_404(RVService, id=service_id, domain=request.domain, type="instagram")
 
-        service = get_object_or_404(RVService, id=service_id, domain=request.domain)
+    state = secrets.token_urlsafe(32)
+    request.session["instagram_oauth_state"] = state
 
-        # Get form data
-        instagram_account_id = request.POST.get('instagram_account_id')
-        facebook_access_token = request.POST.get('facebook_access_token')
+    redirect_uri = _instagram_oauth_redirect_uri(request)
+    auth_url = rvservices.instagram_oauth.build_authorize_url(
+        redirect_uri=redirect_uri,
+        state=state,
+    )
+    return HttpResponseRedirect(auth_url)
 
-        if not instagram_account_id or not facebook_access_token:
-            messages.error(request, "Please provide both Instagram Account ID and Facebook Access Token")
-            return render(request, "rvadmin/instagram_setup.html", {})
 
-        try:
-            # Initialize Facebook API
-            FacebookAdsApi.init(access_token=facebook_access_token)
+@login_required
+@admin_page
+def instagram_oauth_return(request):
+    """OAuth callback: exchange code, store long-lived token on RVService."""
+    if request.GET.get("error"):
+        messages.error(
+            request,
+            request.GET.get("error_description", request.GET.get("error")),
+        )
+        return HttpResponseRedirect(reverse("admin_index"))
 
-            # Test the connection by getting the Instagram user info
-            ig_user = IGUser(instagram_account_id)
-            user_data = ig_user.api_get(fields=['id', 'username'])
+    code = request.GET.get("code")
+    state = request.GET.get("state")
+    if not code or state != request.session.get("instagram_oauth_state"):
+        messages.error(request, "Invalid Instagram OAuth response.")
+        return HttpResponseRedirect(reverse("admin_index"))
 
-            # Update service with Instagram account details
-            service.userid = user_data['id']
-            service.username = user_data['username']
-            service.auth_token = facebook_access_token
-            service.save()
+    service_id = request.session.get("instagram_service_id")
+    if not service_id:
+        messages.error(request, "Session expired. Connect Instagram again.")
+        return HttpResponseRedirect(reverse("admin_index"))
 
-            messages.success(request, f"Successfully connected to Instagram account: @{user_data['username']}")
+    service = get_object_or_404(
+        RVService, id=service_id, domain=request.domain, type="instagram"
+    )
+    redirect_uri = _instagram_oauth_redirect_uri(request)
 
-            # Clear session
-            del request.session['instagram_service_id']
+    try:
+        row = rvservices.instagram_oauth.exchange_code_for_short_lived_token(
+            code=code, redirect_uri=redirect_uri
+        )
+        short_token = row["access_token"]
+        long_out = rvservices.instagram_graph_service.exchange_short_lived_for_long_lived(
+            short_token
+        )
+        long_token = long_out["access_token"]
+        expires_in = int(long_out.get("expires_in", 0))
 
-            return HttpResponseRedirect(reverse("admin_index"))
+        me = rvservices.instagram_graph_service.fetch_me(long_token)
+        service.userid = str(me["id"])
+        service.username = me.get("username", "")[:128]
+        service.auth_token = long_token
+        now = timezone.now()
+        service.instagram_last_token_refresh_at = now
+        if expires_in:
+            service.instagram_token_expires_at = now + timedelta(seconds=expires_in)
+        else:
+            service.instagram_token_expires_at = None
+        service.save()
 
-        except Exception as e:
-            messages.error(request, f"Error connecting to Instagram: {str(e)}")
-            return render(request, "rvadmin/instagram_setup.html", {})
+        for key in ("instagram_oauth_state", "instagram_service_id"):
+            request.session.pop(key, None)
 
-    return render(request, "rvadmin/instagram_setup.html", {})
+        messages.success(
+            request,
+            f"Connected Instagram @{service.username or service.userid}. Run content update to import media.",
+        )
+        return HttpResponseRedirect(reverse("admin_index"))
+    except Exception as e:
+        messages.error(request, f"Instagram OAuth failed: {e}")
+        return HttpResponseRedirect(reverse("admin_index"))
 
 @login_required
 @admin_page

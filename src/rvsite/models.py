@@ -37,11 +37,15 @@ class RVService(models.Model):
     userid = models.CharField(max_length=128, blank=True, default='')
     profile_pic = models.CharField(max_length=512, blank=True, default='')
     max_update_id = models.CharField(max_length=256, blank=True, default='')
-    auth_token = models.CharField(max_length=256, blank=True, default='')
+    # Long-lived Instagram user access token (Instagram Login) or other OAuth secrets; TextField for token length.
+    auth_token = models.TextField(blank=True, default='')
     auth_secret = models.CharField(max_length=256, blank=True, default='')
     live = models.BooleanField(default=True)
     hide_unmoderated = models.BooleanField(default=False)
     extra_data = models.BinaryField(blank=True, default=b'')
+
+    instagram_token_expires_at = models.DateTimeField(null=True, blank=True)
+    instagram_last_token_refresh_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
 

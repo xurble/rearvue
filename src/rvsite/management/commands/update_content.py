@@ -70,8 +70,10 @@ class Command(BaseCommand):
         if not options['skip_instagram']:
             self.stdout.write("Updating Instagram")
             try:
-                from rvservices.instagram_service import update_instagram
+                from rvservices.instagram_graph_service import mirror_instagram, update_instagram
+
                 update_instagram()
+                mirror_instagram()
                 self.stdout.write(self.style.SUCCESS("Instagram update completed"))
             except Exception as ex:
                 self.stdout.write(self.style.ERROR(f"Instagram update failed: {ex}"))

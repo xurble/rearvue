@@ -41,6 +41,15 @@ FLICKR_SECRET = settings_server.FLICKR_SECRET
 INSTAGRAM_KEY =    settings_server.INSTAGRAM_KEY
 INSTAGRAM_SECRET = settings_server.INSTAGRAM_SECRET
 
+# Instagram API with Instagram Login (OAuth). Optional override if redirect cannot be derived from the domain.
+INSTAGRAM_REDIRECT_URI = getattr(settings_server, "INSTAGRAM_REDIRECT_URI", None)
+INSTAGRAM_GRAPH_API_VERSION = getattr(settings_server, "INSTAGRAM_GRAPH_API_VERSION", "v22.0")
+INSTAGRAM_OAUTH_SCOPES = getattr(
+    settings_server,
+    "INSTAGRAM_OAUTH_SCOPES",
+    "instagram_business_basic",
+)
+
 # Facebook Graph API settings for Instagram
 FACEBOOK_ACCESS_TOKEN = getattr(settings_server, 'FACEBOOK_ACCESS_TOKEN', None)
 

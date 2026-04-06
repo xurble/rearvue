@@ -7,9 +7,7 @@ flickrapi
 django-feed-reader
 requests
 git+https://github.com/xurble/webpreview
-facebook-business
 html5lib
-instaloader>=4.10.3
 
 safety
 bandit
