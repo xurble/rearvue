@@ -4,12 +4,6 @@
 #
 #    pip-compile --output-file=requirements.txt requirements.in
 #
-aiohappyeyeballs==2.6.1
-    # via aiohttp
-aiohttp==3.13.5
-    # via facebook-business
-aiosignal==1.4.0
-    # via aiohttp
 annotated-doc==0.0.4
     # via typer
 annotated-types==0.7.0
@@ -18,9 +12,7 @@ anyio==4.13.0
     # via httpx
 asgiref==3.11.1
     # via django
-attrs==26.1.0
-    # via aiohttp
-authlib==1.6.9
+authlib==1.6.11
     # via safety
 bandit==1.9.4
     # via -r requirements.in
@@ -47,8 +39,6 @@ colorlog==6.10.1
     # via -r requirements.in
 cryptography==46.0.6
     # via authlib
-curlify==3.0.0
-    # via facebook-business
 django==6.0.3
     # via
     #   -r requirements.in
@@ -64,18 +54,12 @@ dparse==0.6.4
     #   safety-schemas
 dripfeed-client==0.1.3
     # via django-feed-reader
-facebook-business==25.0.1
-    # via -r requirements.in
 feedparser==6.0.12
     # via django-feed-reader
 filelock==3.25.2
     # via safety
 flickrapi==2.4.0
     # via -r requirements.in
-frozenlist==1.8.0
-    # via
-    #   aiohttp
-    #   aiosignal
 gunicorn==25.3.0
     # via -r requirements.in
 h11==0.16.0
@@ -91,9 +75,6 @@ idna==3.11
     #   anyio
     #   httpx
     #   requests
-    #   yarl
-instaloader==4.15.1
-    # via -r requirements.in
 jinja2==3.1.6
     # via safety
 joblib==1.5.3
@@ -106,10 +87,6 @@ marshmallow==4.2.4
     # via safety
 mdurl==0.1.2
     # via markdown-it-py
-multidict==6.7.1
-    # via
-    #   aiohttp
-    #   yarl
 mysqlclient==2.2.8
     # via -r requirements.in
 nltk==3.9.4
@@ -129,12 +106,6 @@ pillow==12.2.0
     # via -r requirements.in
 proctitle==0.1.6
     # via -r requirements.in
-propcache==0.4.1
-    # via
-    #   aiohttp
-    #   yarl
-pycountry==26.2.16
-    # via facebook-business
 pycparser==3.0
     # via cffi
 pydantic==2.12.5
@@ -156,12 +127,9 @@ regex==2026.3.32
 requests==2.33.1
     # via
     #   -r requirements.in
-    #   curlify
     #   django-feed-reader
     #   dripfeed-client
-    #   facebook-business
     #   flickrapi
-    #   instaloader
     #   requests-oauthlib
     #   requests-toolbelt
     #   safety
@@ -192,7 +160,6 @@ shellingham==1.5.4
     # via typer
 six==1.17.0
     # via
-    #   facebook-business
     #   flickrapi
     #   html5lib
     #   python-dateutil
@@ -214,7 +181,6 @@ typer==0.24.1
     # via safety
 typing-extensions==4.15.0
     # via
-    #   aiosignal
     #   anyio
     #   beautifulsoup4
     #   pydantic
@@ -232,5 +198,3 @@ webpreview @ git+https://github.com/xurble/webpreview
     # via -r requirements.in
 wheel==0.46.3
     # via -r requirements.in
-yarl==1.23.0
-    # via aiohttp
