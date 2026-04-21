@@ -12,7 +12,7 @@ anyio==4.13.0
     # via httpx
 asgiref==3.11.1
     # via django
-authlib==1.6.9
+authlib==1.6.11
     # via safety
 bandit==1.9.4
     # via -r requirements.in
@@ -39,7 +39,7 @@ colorlog==6.10.1
     # via -r requirements.in
 cryptography==46.0.7
     # via authlib
-django==6.0.3
+django==6.0.4
     # via
     #   -r requirements.in
     #   django-debug-toolbar
