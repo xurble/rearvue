@@ -196,5 +196,5 @@ webencodings==0.5.1
     # via html5lib
 webpreview @ git+https://github.com/xurble/webpreview
     # via -r requirements.in
-wheel==0.46.3
+wheel==0.47.0
     # via -r requirements.in
