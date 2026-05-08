@@ -60,7 +60,7 @@ filelock==3.25.2
     # via safety
 flickrapi==2.4.0
     # via -r requirements.in
-gunicorn==25.3.0
+gunicorn==26.0.0
     # via -r requirements.in
 h11==0.16.0
     # via httpcore
