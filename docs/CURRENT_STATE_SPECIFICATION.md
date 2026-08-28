@@ -2,7 +2,7 @@
 
 Status: as-built catch-up specification
 
-Evidence baseline: repository `master` at `661b5b4`
+Evidence baseline: repository `main` at `661b5b4`
 
 Scope: the Django application under `src/`, its public and administrative web interfaces, persistence model, ingestion jobs, and external service integrations
 
