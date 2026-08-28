@@ -39,6 +39,8 @@ colorlog==6.10.1
     # via -r requirements.in
 cryptography==46.0.7
     # via authlib
+defusedxml==0.7.1
+    # via nltk
 django==6.0.4
     # via
     #   -r requirements.in
@@ -89,7 +91,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mysqlclient==2.2.8
     # via -r requirements.in
-nltk==3.9.4
+nltk==3.10.0
     # via safety
 oauthlib==3.3.1
     # via requests-oauthlib
