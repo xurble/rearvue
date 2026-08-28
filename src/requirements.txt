@@ -41,7 +41,7 @@ cryptography==46.0.7
     # via authlib
 defusedxml==0.7.1
     # via nltk
-django==6.0.4
+django==6.0.7
     # via
     #   -r requirements.in
     #   django-debug-toolbar
