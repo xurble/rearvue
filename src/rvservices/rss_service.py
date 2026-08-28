@@ -7,12 +7,14 @@ from feeds.models import Source, Post
 from rvsite.models import RVItem, RVService, RVMedia, RVLink
 from rearvue import utils
 
-import requests
 from PIL import Image
 
 from bs4 import BeautifulSoup
 from webpreview import webpreview
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def fix_rss_item(itemid):
@@ -95,7 +97,7 @@ def mirror_rss(specific_item=None):
                 rvm.save()
 
                 if e.type.startswith("image/"):
-                    ret = requests.get(e.href, timeout=30, verify=True)
+                    ret = utils.get_public_url(e.href, timeout=30)
                     rvm.media_type = 1
                     ext = e.type.split("/")[-1]
 
@@ -130,7 +132,7 @@ def mirror_rss(specific_item=None):
 
                         img.save(target_path)
                 elif e.type.startswith("video/"):
-                    ret = requests.get(e.href, timeout=30, verify=True)
+                    ret = utils.get_public_url(e.href, timeout=30)
                     rvm.media_type = 2
                     ext = e.type.split("/")[-1]
 
@@ -153,8 +155,8 @@ def mirror_rss(specific_item=None):
 
             item.mirror_state = 1
             item.save()
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception("Unable to mirror RSS item %s", item.id)
 
 
 def find_rss_links(specific_item=None):
@@ -195,11 +197,15 @@ def find_rss_links(specific_item=None):
                     link.item = item
 
                 print(link.url)
+                if not utils.validate_public_http_url(link.url):
+                    raise ValueError("RSS link URL scheme or host is not allowed")
                 link.url = utils.final_destination(link.url)
+                if not utils.validate_public_http_url(link.url):
+                    raise ValueError("RSS link redirect target is not allowed")
                 p = webpreview(link.url, timeout=1000)
 
                 if p.image is not None and p.image != "":
-                    ret = requests.get(p.image, timeout=30)
+                    ret = utils.get_public_url(p.image, timeout=30)
                     if not ret.ok:
                         p.image = ""
 
@@ -222,5 +228,5 @@ def find_rss_links(specific_item=None):
             item.mirror_state = 2
             item.save()
 
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception("Unable to find links for RSS item %s", item.id)

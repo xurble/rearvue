@@ -86,6 +86,33 @@ def validate_public_http_url(url):
     return parsed.geturl()
 
 
+def get_public_url(url, *, timeout=30, headers=None):
+    """Fetch a public HTTP(S) URL while validating every redirect target."""
+    current = validate_public_http_url(url)
+    if not current:
+        raise ValueError("URL scheme or host is not allowed")
+
+    for _ in range(MAX_REDIRECT_HOPS):
+        response = requests.get(
+            current,
+            timeout=timeout,
+            verify=True,
+            allow_redirects=False,
+            headers=headers,
+        )
+        if response.status_code not in REDIRECT_STATUSES:
+            return response
+
+        location = response.headers.get("Location")
+        if not location:
+            return response
+        current = validate_public_http_url(urljoin(current, location))
+        if not current:
+            raise ValueError("Redirect led to a URL that is not allowed")
+
+    raise requests.TooManyRedirects(f"More than {MAX_REDIRECT_HOPS} redirects")
+
+
 def make_full_path(local_path):
 
     return os.path.join(settings.DATA_STORE, local_path)
@@ -197,7 +224,7 @@ def make_link(link_url, item, is_context=False):
 
         if p.image is not None and p.image != "" and p.image != "None":
             if validate_public_http_url(p.image):
-                ret = requests.get(p.image, timeout=30)
+                ret = get_public_url(p.image, timeout=30)
                 if not ret.ok:
                     p.image = ""
             else:

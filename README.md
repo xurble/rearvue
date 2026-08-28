@@ -50,8 +50,15 @@ Optional overrides (read in `rearvue/settings.py` via `getattr` where noted):
 | `INSTAGRAM_GRAPH_API_VERSION` | Default `v22.0` |
 | `INSTAGRAM_OAUTH_SCOPES` | Default `instagram_business_basic` |
 | `FACEBOOK_ACCESS_TOKEN` | Optional; not used by the current Instagram Login flow |
+| `SECURE_SSL_REDIRECT` | Defaults to `True` when `DEBUG` is false |
+| `SESSION_COOKIE_SECURE` | Defaults to `True` when `DEBUG` is false |
+| `CSRF_COOKIE_SECURE` | Defaults to `True` when `DEBUG` is false |
+| `SECURE_HSTS_SECONDS` | Defaults to one year in production and `0` in debug mode |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | Defaults to `True` when `DEBUG` is false |
+| `SECURE_HSTS_PRELOAD` | Defaults to `False`; enable only after confirming preload requirements |
+| `SECURE_PROXY_SSL_HEADER` | Set for a trusted TLS-terminating proxy, e.g. `("HTTP_X_FORWARDED_PROTO", "https")` |
 
-Install dependencies from `src/requirements.txt`, run migrations from `src/`, create a superuser, and collect static files as usual for Django.
+Install production dependencies from `src/requirements.txt`. Contributors can instead install `src/requirements-dev.txt`, which includes the runtime set plus debugging and security tools. Run migrations from `src/`, create a superuser, and collect static files as usual for Django.
 
 ---
 
@@ -72,7 +79,7 @@ Wrong or missing **name** / **alt_domain** leads to 404 in `/rvadmin/` or OAuth 
 
 - **Public site:** `/` (per `rvsite` URLs).
 - **Django admin:** `/admin/` — use this to create and edit `RVDomain`, `RVService`, and content models.
-- **Site admin (RearVue):** `/rvadmin/` — superuser only; lists services for the current domain and runs connect flows.
+- **Site admin (RearVue):** `/rvadmin/` — intentionally superuser-only; `RVDomain.owner` controls private-content visibility but does not grant administration access. The site admin lists services for the current domain and runs connect flows.
 
 ---
 

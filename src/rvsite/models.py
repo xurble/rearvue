@@ -5,6 +5,9 @@ from django.contrib.auth.models import User
 
 # Create your models here.
 import datetime
+from urllib.parse import urlparse
+
+from django.conf import settings
 
 
 class RVDomain(models.Model):
@@ -25,6 +28,14 @@ class RVDomain(models.Model):
 
     def __str__(self):
         return "%s - %s" % (self.name, self.display_name)
+
+    @property
+    def public_origin(self):
+        alt_domain = self.alt_domain.strip().rstrip("/")
+        if alt_domain and urlparse(alt_domain).scheme in ("http", "https"):
+            return alt_domain
+        host = alt_domain or self.name
+        return f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{host}"
 
 
 class RVService(models.Model):
@@ -150,10 +161,8 @@ class RVItem(models.Model):
 
     @property
     def thumbnail(self):
-        try:
-            return self.rvmedia_set.first().thumbnail
-        except Exception:
-            return ""
+        media = self.rvmedia_set.first()
+        return media.thumbnail if media else ""
 
     @property
     def media_type(self):
