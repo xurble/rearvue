@@ -44,7 +44,7 @@ cryptography==50.0.1
     #   joserfc
 defusedxml==0.7.1
     # via nltk
-django==6.1
+django==6.0.8
     # via
     #   -r requirements.in
     #   django-debug-toolbar
