@@ -22,6 +22,10 @@ def update_flickr():
     
     for service in f_services:
 
+        config = service.config
+        credentials = service.credentials
+        state = service.state
+
         if utils.hours_since(service.last_checked) < 12:
             print("Skipping {s} (too soon)".format(s=service))
         else:
@@ -32,16 +36,17 @@ def update_flickr():
                          fullname=u'', username=u'', user_nsid=u''):
             """
 
-            token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
+            token = flickrapi.auth.FlickrAccessToken(token=credentials.get("access_token", ""), token_secret=credentials.get("token_secret", ""), access_level='read', username=config.get("username", ""), user_nsid=config.get("user_id", ""))
     
             f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
 
-            if service.userid == "":
+            if config.get("user_id", "") == "":
                 try:
-                    u = f.people.findByUsername( username = service.username )  
+                    u = f.people.findByUsername(username=config.get("username", ""))
             
-                    service.userid = u["user"]["id"]
-                    service.save()                    
+                    config = {**config, "user_id": u["user"]["id"]}
+                    service.config = config
+                    service.save(update_fields=["config"])
                 except Exception as ex:        
                     print(ex)
                     return
@@ -54,14 +59,14 @@ def update_flickr():
                 page += 1
                 print("Getting page ", page)
   
-                if service.max_update_id != "":
-                    min_date = service.max_update_id
+                if state.get("max_update_id", "") != "":
+                    min_date = state["max_update_id"]
                 else:
                     min_date = None
                 
                 pix = f.people.getPhotos(
                     extras="date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
-                    user_id=service.userid,
+                    user_id=config.get("user_id", ""),
                     page=page,
                     min_upload_date=min_date)["photos"]
             
@@ -93,16 +98,16 @@ def update_flickr():
                     item.datetime_created = taken_datetime
                     item.date_created     = taken_datetime.date()
                 
-                    item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (service.username, i["id"])
+                    item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (config.get("username", ""), i["id"])
 
                     item.raw_data = json.dumps(i)
                 
                     item.save()
         
             if max_upload_date:                
-                service.max_update_id = str(max_upload_date)
+                service.state = {**state, "max_update_id": str(max_upload_date)}
             service.last_checked = timezone.now()
-            service.save()
+            service.save(update_fields=["state", "last_checked"])
 
 
 def mirror_flickr():
@@ -111,7 +116,7 @@ def mirror_flickr():
     
     for service in f_services:
 
-        token = flickrapi.auth.FlickrAccessToken(token=service.auth_token, token_secret=service.auth_secret, access_level='read', username=service.username, user_nsid=service.userid)
+        token = flickrapi.auth.FlickrAccessToken(token=service.credentials.get("access_token", ""), token_secret=service.credentials.get("token_secret", ""), access_level='read', username=service.config.get("username", ""), user_nsid=service.config.get("user_id", ""))
         f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
     
         queue = RVItem.objects.filter(mirror_state=0).filter(service=service)[:100]

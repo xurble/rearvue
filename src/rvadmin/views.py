@@ -194,23 +194,27 @@ def instagram_oauth_return(request):
         expires_in = int(long_out.get("expires_in", 0))
 
         me = rvservices.instagram_graph_service.fetch_me(long_token)
-        service.userid = str(me["id"])
-        service.username = me.get("username", "")[:128]
-        service.auth_token = long_token
+        service.config = {
+            **service.config,
+            "user_id": str(me["id"]),
+            "username": me.get("username", "")[:128],
+        }
+        credentials = {**service.credentials, "access_token": long_token}
         now = timezone.now()
-        service.instagram_last_token_refresh_at = now
+        credentials["last_token_refresh_at"] = now.isoformat()
         if expires_in:
-            service.instagram_token_expires_at = now + timedelta(seconds=expires_in)
+            credentials["token_expires_at"] = (now + timedelta(seconds=expires_in)).isoformat()
         else:
-            service.instagram_token_expires_at = None
-        service.save()
+            credentials["token_expires_at"] = None
+        service.credentials = credentials
+        service.save(update_fields=["config", "credentials"])
 
         for key in ("instagram_oauth_state", "instagram_service_id"):
             request.session.pop(key, None)
 
         messages.success(
             request,
-            f"Connected Instagram @{service.username or service.userid}. Run content update to import media.",
+            f"Connected Instagram @{service.config.get('username') or service.config.get('user_id')}. Run content update to import media.",
         )
         return HttpResponseRedirect(reverse("admin_index"))
     except Exception as e:
@@ -242,8 +246,11 @@ def flickr_connect(request, iid):
 
         url = f.auth_url(perms='read')
 
-        svc.auth_token = f.flickr_oauth.resource_owner_key
-        svc.auth_secret = f.flickr_oauth.resource_owner_secret
+        svc.credentials = {
+            **svc.credentials,
+            "access_token": f.flickr_oauth.resource_owner_key,
+            "token_secret": f.flickr_oauth.resource_owner_secret,
+        }
 
         svc.save()
 
@@ -265,8 +272,8 @@ def flickr_return(request):
 
     f = FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=None, store_token=False)
 
-    f.flickr_oauth.resource_owner_key = svc.auth_token
-    f.flickr_oauth.resource_owner_secret = svc.auth_secret
+    f.flickr_oauth.resource_owner_key = svc.credentials.get("access_token", "")
+    f.flickr_oauth.resource_owner_secret = svc.credentials.get("token_secret", "")
     f.flickr_oauth.requested_permissions = "read"
     verifier = request.GET['oauth_verifier']
 
@@ -274,11 +281,17 @@ def flickr_return(request):
 
     token = f.token_cache.token
 
-    svc.username = token.username
-    svc.userid = token.user_nsid
-    svc.auth_token = token.token
-    svc.auth_secret = token.token_secret
-    svc.save()
+    svc.config = {
+        **svc.config,
+        "username": token.username,
+        "user_id": token.user_nsid,
+    }
+    svc.credentials = {
+        **svc.credentials,
+        "access_token": token.token,
+        "token_secret": token.token_secret,
+    }
+    svc.save(update_fields=["config", "credentials"])
 
     return HttpResponseRedirect(reverse("admin_index"))
 

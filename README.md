@@ -85,14 +85,17 @@ Wrong or missing **name** / **alt_domain** leads to 404 in `/rvadmin/` or OAuth 
 
 ## Configuring each service
 
-`RVService` rows tie a source to a domain. **type** must match exactly what the workers expect (lowercase): `rss`, `twitter`, `flickr`, `instagram`.
+`RVService` rows tie a source to a domain. Choose one of the supported lowercase
+**type** values: `rss`, `twitter`, `flickr`, or `instagram`. Provider data is split
+between three JSON objects: user-managed `config`, secret `credentials`, and
+worker-managed `state`.
 
 ### RSS (`type = rss`)
 
 Used for any feed [django-feed-reader](https://pypi.org/project/django-feed-reader/) can poll (blogs, GitHub releases, Mastodon RSS, etc.).
 
 1. In Django **admin**, add **RV services** → choose **domain**, set **type** to `rss`, set **name** as you like.
-2. Set **auth token** to the **full feed URL** (the code stores the feed URL in this field).
+2. Set **config** to `{"feed_url": "https://example.com/feed.xml"}` using the full feed URL.
 3. Ensure **live** is checked when you want `update_content` to crawl it.
 4. Run `python manage.py update_content` (or your cron equivalent) so `update_rss` runs; feeds are mirrored when enclosures exist.
 
@@ -102,7 +105,8 @@ Pagination depth depends on the feed itself.
 
 Live Twitter API updates are not implemented; import is via **X/Twitter archive**.
 
-1. In Django **admin**, add **RV services** with **type** `twitter`, correct **domain**, and **username** set to your handle (no `@`) — used when building status URLs during import.
+1. In Django **admin**, add **RV services** with **type** `twitter`, the correct
+   **domain**, and `{"username": "your-handle"}` in **config** (no `@`).
 2. Visit `/rvadmin/twitter_connect/<service_id>/` (the id is the primary key of that `RVService`).
 3. Upload the archive **`tweets.js`** file using the “Import Twitter Archive” form (the file should start like `window.YTD.tweets.part0 = ` as produced by the archive).
 

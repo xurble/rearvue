@@ -40,27 +40,25 @@ class RVDomain(models.Model):
 
 class RVService(models.Model):
 
+    class Type(models.TextChoices):
+        RSS = "rss", "RSS"
+        TWITTER = "twitter", "Twitter archive"
+        FLICKR = "flickr", "Flickr"
+        INSTAGRAM = "instagram", "Instagram"
+
     name = models.CharField(max_length=512)
     domain = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
-    type = models.CharField(max_length=128)
+    type = models.CharField(max_length=128, choices=Type.choices)
     last_checked = models.DateTimeField(default=datetime.datetime(2015, 1, 10, 17, 26, 51, 977260))  # old date makes it get checked right away
-    username = models.CharField(max_length=128, blank=True, default='')
-    userid = models.CharField(max_length=128, blank=True, default='')
-    profile_pic = models.CharField(max_length=512, blank=True, default='')
-    max_update_id = models.CharField(max_length=256, blank=True, default='')
-    # Long-lived Instagram user access token (Instagram Login) or other OAuth secrets; TextField for token length.
-    auth_token = models.TextField(blank=True, default='')
-    auth_secret = models.CharField(max_length=256, blank=True, default='')
     live = models.BooleanField(default=True)
     hide_unmoderated = models.BooleanField(default=False)
-    extra_data = models.BinaryField(blank=True, default=b'')
-
-    instagram_token_expires_at = models.DateTimeField(null=True, blank=True)
-    instagram_last_token_refresh_at = models.DateTimeField(null=True, blank=True)
+    config = models.JSONField(blank=True, default=dict)
+    credentials = models.JSONField(blank=True, default=dict)
+    state = models.JSONField(blank=True, default=dict)
 
     def __str__(self):
 
-        return "%s (%s) %s" % (self.name, self.type, self.username)
+        return "%s (%s) %s" % (self.name, self.type, self.config.get("username", ""))
 
 
 class RVItem(models.Model):
@@ -138,7 +136,7 @@ class RVItem(models.Model):
             if self.date_created < datetime.date(year=2009, month=1, day=1) and self.caption:
                 first_character = f"{self.caption[0]}".lower()
                 if first_character == f"{self.caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
-                    return f"@{self.service.username} {self.caption}"
+                    return f"@{self.service.config.get('username', '')} {self.caption}"
         return self.caption
 
     @property

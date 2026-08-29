@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional
 import requests
 from django.conf import settings
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from rvsite.models import RVItem, RVMedia, RVService
 from rearvue import utils
@@ -147,29 +148,27 @@ def exchange_short_lived_for_long_lived(short_lived_token: str) -> Dict[str, Any
 
 def maybe_refresh_service_token(service: RVService) -> None:
     """Refresh long-lived token if nearing expiry (best-effort)."""
-    if not service.auth_token:
+    access_token = service.credentials.get("access_token", "")
+    if not access_token:
         return
     now = timezone.now()
-    expires = service.instagram_token_expires_at
+    expires_value = service.credentials.get("token_expires_at")
+    expires = parse_datetime(expires_value) if expires_value else None
     if expires and expires > now + datetime.timedelta(days=14):
         return
-    last = service.instagram_last_token_refresh_at
+    last_value = service.credentials.get("last_token_refresh_at")
+    last = parse_datetime(last_value) if last_value else None
     if last and (now - last) < datetime.timedelta(hours=24):
         return
     try:
-        out = refresh_long_lived_token(service.auth_token)
-        service.auth_token = out["access_token"]
+        out = refresh_long_lived_token(access_token)
+        credentials = {**service.credentials, "access_token": out["access_token"]}
         sec = int(out.get("expires_in", 0))
         if sec:
-            service.instagram_token_expires_at = now + datetime.timedelta(seconds=sec)
-        service.instagram_last_token_refresh_at = now
-        service.save(
-            update_fields=[
-                "auth_token",
-                "instagram_token_expires_at",
-                "instagram_last_token_refresh_at",
-            ]
-        )
+            credentials["token_expires_at"] = (now + datetime.timedelta(seconds=sec)).isoformat()
+        credentials["last_token_refresh_at"] = now.isoformat()
+        service.credentials = credentials
+        service.save(update_fields=["credentials"])
         logger.info("Refreshed Instagram token for service id=%s", service.id)
     except Exception as e:
         logger.warning("Instagram token refresh failed for service id=%s: %s", service.id, e)
@@ -345,7 +344,7 @@ def fix_instagram_item(itemid):
         return (False, "Not an instagram item")
 
     svc = dbitem.service
-    if not svc.auth_token:
+    if not svc.credentials.get("access_token"):
         return (False, "Instagram service has no access token")
 
     try:
@@ -357,7 +356,7 @@ def fix_instagram_item(itemid):
         if not media_id:
             return (False, "No media id in item raw_data")
 
-        media = fetch_media_object(svc.auth_token, str(media_id))
+        media = fetch_media_object(svc.credentials["access_token"], str(media_id))
         post_data = map_graph_media_to_raw_data(media)
 
         cap = post_data.get("caption") or ""
@@ -384,7 +383,9 @@ def sync_instagram_service(service: RVService) -> int:
         logger.info("Skipping Instagram service id=%s (checked < 12h ago)", service.id)
         return 0
 
-    if not service.auth_token or not service.userid:
+    access_token = service.credentials.get("access_token", "")
+    user_id = service.config.get("user_id", "")
+    if not access_token or not user_id:
         logger.warning("Instagram service id=%s missing token or userid", service.id)
         return 0
 
@@ -392,7 +393,7 @@ def sync_instagram_service(service: RVService) -> int:
     service.refresh_from_db()
 
     processed = 0
-    for media in iter_user_media(service.auth_token, service.userid):
+    for media in iter_user_media(service.credentials["access_token"], user_id):
         post_id = str(media["id"])
         # Media are returned newest-first; stop when we reach an already-mirrored post.
         if RVItem.objects.filter(

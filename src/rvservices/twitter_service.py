@@ -58,7 +58,7 @@ def import_archive(service, data):
             item.datetime_created = datetime.datetime.strptime(tweet["created_at"], '%a %b %d %H:%M:%S %z %Y')
             item.date_created = datetime.date(year=item.datetime_created.year, month=item.datetime_created.month, day=item.datetime_created.day)
 
-            item.remote_url = "https://twitter.com/{username}/status/{id}".format(username=service.username, id=tweet['id'])
+            item.remote_url = "https://twitter.com/{username}/status/{id}".format(username=service.config.get("username", ""), id=tweet['id'])
 
             if "media" in tweet["entities"]:
                 for m in tweet["entities"]["media"]:
