@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
-pip install safety pip-tools
-rm -f requirements.txt
-pip-compile -r --output-file requirements.txt requirements.in 
+pip install pip-tools safety
+pip-compile --output-file requirements.txt requirements.in
+pip-compile --output-file requirements-dev.txt requirements-dev.in
 safety check -r requirements.txt
-
-pip install PdbBBEditSupport

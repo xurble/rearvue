@@ -73,6 +73,7 @@ INSTALLED_APPS = (
 )
 
 MIDDLEWARE = (
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -80,6 +81,18 @@ MIDDLEWARE = (
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
+
+# Secure-by-default production settings. Deployments behind a TLS-terminating
+# proxy can override these values in settings_server as needed.
+SECURE_SSL_REDIRECT = getattr(settings_server, "SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = getattr(settings_server, "SESSION_COOKIE_SECURE", not DEBUG)
+CSRF_COOKIE_SECURE = getattr(settings_server, "CSRF_COOKIE_SECURE", not DEBUG)
+SECURE_HSTS_SECONDS = getattr(settings_server, "SECURE_HSTS_SECONDS", 31536000 if not DEBUG else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = getattr(
+    settings_server, "SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG
+)
+SECURE_HSTS_PRELOAD = getattr(settings_server, "SECURE_HSTS_PRELOAD", False)
+SECURE_PROXY_SSL_HEADER = getattr(settings_server, "SECURE_PROXY_SSL_HEADER", None)
 
 ROOT_URLCONF = 'rearvue.urls'
 

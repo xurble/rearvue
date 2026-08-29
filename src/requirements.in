@@ -8,13 +8,6 @@ django-feed-reader
 requests
 git+https://github.com/xurble/webpreview
 html5lib
-
-safety
-bandit
-django-debug-toolbar
-PdbBBEditSupport
 colorlog
-
-wheel
 proctitle
 gunicorn

@@ -47,17 +47,19 @@ This report is organized as actionable todo lists: **P0** (address before trusti
 
 ## P2 — Security hardening, performance, operational risk
 
-- [ ] **Harden production Django settings (likely in `settings_server`).**  
+- [x] **Harden production Django settings (likely in `settings_server`).**
   **Where:** `src/rearvue/settings.py` pulls `DEBUG`, `ALLOWED_HOSTS`, secrets from `settings_server`; middleware list has no `SecurityMiddleware` and no visible `SECURE_*` cookie/redirect/HSTS flags in-repo.  
   **Work:** For production, enable `SecurityMiddleware`, set `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, and HSTS as appropriate behind HTTPS. Ensure `ALLOWED_HOSTS` is explicit. Document required `settings_server` keys in README for new environments.
+  **Done:** Added `SecurityMiddleware`, secure production defaults with deployment overrides, and documented the settings and trusted-proxy option.
 
 - [x] **Side-effecting admin action over GET (`fix_item`).**  
   **Where:** `src/rvadmin/views.py`, `src/rvsite/templates/rvsite/item.html`.  
   **Done:** `@require_POST` on `fix_item`; item page uses POST form with CSRF + submit button.
 
-- [ ] **SSR F and outbound fetch consistency.**  
+- [x] **SSRF and outbound fetch consistency.**
   **Where:** `src/rearvue/utils.py` implements `validate_public_http_url` for `make_link` / `final_destination`. `src/rvservices/rss_service.py` uses `requests.get(e.href, ...)` for enclosures without the same validation. Instagram/Twitter mirroring use hard-coded or platform URLs (lower risk than arbitrary RSS). `find_rss_links` uses `final_destination` but `requests.get(p.image)` without re-validating image URL (partially addressed in `make_link`).  
   **Work:** Route all untrusted URL fetches through a single helper that validates scheme/host and optionally resolves redirects safely, matching `validate_public_http_url` rules.
+  **Done:** Added `get_public_url`, which validates initial and redirect URLs, and routed RSS enclosure and preview-image downloads through it.
 
 - [ ] **Expensive random ordering on year view.**  
   **Where:** `src/rvsite/views.py` `show_year` uses `order_by("?")`.  
@@ -68,9 +70,10 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Where:** `RVService.auth_token` / `auth_secret` (Flickr, Instagram OAuth), `extra_data` (e.g. legacy blobs).  
   **Work:** At minimum encrypt-at-rest using `django-fernet-fields` or custom encryption with a key from env. Document key rotation. Never log tokens (audit `print` statements in services).
 
-- [ ] **Production dependency hygiene.**  
+- [x] **Production dependency hygiene.**
   **Where:** `src/requirements.in` includes `django-debug-toolbar`, `PdbBBEditSupport`, `safety`, `bandit` alongside runtime packages.  
   **Work:** Split `requirements-dev.in` / `requirements.txt` vs production pins so production images do not install debug tooling unless intended.
+  **Done:** Runtime and development inputs/locks are separate; the update script compiles both and checks the production lock.
 
 - [x] **`fixssl.py` mutates system OpenSSL paths via symlink.**  
   **Where:** `src/fixssl.py` (removed).  
@@ -92,9 +95,10 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Where:** `src/rvsite/models.py`.  
   **Done:** `save` and `get_slug` use `if not self.slug:` so `None` and `""` both trigger generation.
 
-- [ ] **Template / RSS correctness.**  
+- [x] **Template / RSS correctness.**
   **Where:** `src/rvsite/templates/rss.xml` — `description` embeds `{{ i.display_caption }}` without XML escaping; `link` uses `https://{{ domain.alt_domain }}` which may be empty for some domains.  
   **Work:** Use `{% autoescape on %}` defaults or `force_escape`, or CDATA. Fall back to `domain.name` for links when `alt_domain` is blank.
+  **Done:** Captions are explicitly XML-escaped and feed URLs use a normalized `public_origin` that falls back to `domain.name`.
 
 - [x] **`feed_datetime` filter portability.**  
   **Where:** `src/rvsite/templatetags/rv_filters.py`.  
@@ -108,9 +112,10 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Where:** `src/rearvue/settings.py` pointed at Django 1.6 docs.  
   **Done:** Module docstring and comments use `en/stable` Django URLs.
 
-- [ ] **Access model clarity for `rvadmin`.**  
+- [x] **Access model clarity for `rvadmin`.**
   **Where:** `admin_page` requires `is_superuser`; `RVDomain.owner` exists but is not used for `rvadmin`.  
   **Work:** Decide if domain owners should manage their own site without global superuser; if yes, add permission checks tied to `owner` and tests; if no, document that only superusers may use `/rvadmin/`.
+  **Done:** README now records the intentional superuser-only policy and distinguishes it from owner-only private-content visibility.
 
 ---
 
