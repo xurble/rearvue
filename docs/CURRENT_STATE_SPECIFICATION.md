@@ -202,7 +202,7 @@ Feed output uses `alt_domain` directly for channel/media URLs and does not apply
 
 ### ING-003 — RSS ingestion
 
-Live `rss` services use `auth_token` as the feed URL. RearVue obtains or creates a `django-feed-reader` source, runs the package-wide feed update, then creates or updates items from that source's posts. Posts without enclosures advance directly to mirror state 1; posts with enclosures are mirrored.
+Live `rss` services use `config.feed_url` as the feed URL. RearVue obtains or creates a `django-feed-reader` source, runs the package-wide feed update, then creates or updates items from that source's posts. Posts without enclosures advance directly to mirror state 1; posts with enclosures are mirrored.
 
 The mirroring queue processes up to 50 live RSS items at state 0, recreates their media rows, downloads image/video enclosures, creates thumbnails for images, then advances items to state 1. Link discovery processes up to 50 state-1 items, heuristically selects a link from caption HTML, creates a preview, and advances the item to state 2.
 

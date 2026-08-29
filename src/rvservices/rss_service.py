@@ -39,10 +39,10 @@ def update_rss():
 
         # make sure we are actually crawling this feed
         try:
-            s = Source.objects.get(feed_url=service.auth_token)  # this is a cheesy place to put it but
+            s = Source.objects.get(feed_url=service.config.get("feed_url", ""))
         except Exception:
             s = Source()
-            s.feed_url = service.auth_token
+            s.feed_url = service.config.get("feed_url", "")
             s.save()
         update_feeds()
 
