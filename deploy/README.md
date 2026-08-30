@@ -39,7 +39,8 @@ Copy `src/rearvue/settings_server.py.example` to the ignored
 `src/rearvue/settings_server.py`, then provide its required environment
 variables. Adjust the example hostname, certificate paths, filesystem paths,
 service user/group, and static/media aliases before installing the Nginx and
-systemd files.
+systemd files. Keep Django's `CONN_MAX_AGE` at zero for ASGI; use a
+database-backend-supported pool if persistent connection reuse is required.
 
 From `src/`, the equivalent foreground command is:
 
@@ -47,6 +48,7 @@ From `src/`, the equivalent foreground command is:
 ../.venv/bin/gunicorn --config ../deploy/gunicorn.conf.py rearvue.asgi:application
 ```
 
-Enable MCP only after migrations and client provisioning are complete. Apply
-the Cloudflare controls last, then test both the ordinary site and an MCP
-initialize request through the public hostname.
+Stop web/import writers while applying migrations, then enable MCP only after
+migrations and client provisioning are complete. Apply the Cloudflare controls
+last, then test both the ordinary site and an MCP initialize request through the
+public hostname.
