@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import re
+from urllib.parse import urlparse
 
 from PIL import Image
 
@@ -97,9 +98,11 @@ def _import_tweet(service, tweet):
         if "url" in media:
             item.caption = item.caption.replace(media["url"], "")
 
-    if "//twitpic.com" in item.caption:
-        pattern = r"((http|https)://twitpic\.com/(\w+))"
-        for match in re.findall(pattern, item.caption):
+    pattern = r"((http|https)://twitpic\.com/(\w+))"
+    for match in re.findall(pattern, item.caption):
+        parsed = urlparse(match[0])
+        host = parsed.hostname or ""
+        if host == "twitpic.com" or host.endswith(".twitpic.com"):
             tweet["entities"].setdefault("media", []).append(
                 {"type": "photo", "media_url_https": match[0]}
             )
