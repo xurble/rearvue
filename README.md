@@ -57,12 +57,13 @@ Optional overrides (read in `rearvue/settings.py` via `getattr` where noted):
 | `SECURE_HSTS_INCLUDE_SUBDOMAINS` | Defaults to `True` when `DEBUG` is false |
 | `SECURE_HSTS_PRELOAD` | Defaults to `False`; enable only after confirming preload requirements |
 | `SECURE_PROXY_SSL_HEADER` | Set for a trusted TLS-terminating proxy, e.g. `("HTTP_X_FORWARDED_PROTO", "https")` |
+| `CONN_HEALTH_CHECKS` | Enable Django's per-request health check for reused persistent database connections; the production example enables it |
 
 Install production dependencies from `src/requirements.txt`. Contributors can instead install `src/requirements-dev.txt`, which includes the runtime set plus debugging and security tools. Run migrations from `src/`, create a superuser, and collect static files as usual for Django.
 
 ### Optional MCP server
 
-RearVue includes a disabled-by-default authenticated MCP server for normalized archive reads, search, and item writes. It requires the ASGI entry point plus explicit client scopes and domain grants. See [the MCP contract and deployment guide](docs/MCP.md) for security settings, schemas, limits, and examples.
+RearVue includes a disabled-by-default authenticated MCP server for normalized archive reads, search, and item writes. It requires the ASGI entry point plus explicit client scopes and domain grants. See [the MCP contract and deployment guide](docs/MCP.md) for security settings, schemas, limits, and examples, and [the production ASGI templates](deploy/README.md) for Cloudflare, Nginx, Gunicorn, and systemd configuration.
 
 ---
 

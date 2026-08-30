@@ -6,7 +6,8 @@ This first contract slice supports discovery, granted domain and safe service re
 
 ## Setup and deployment
 
-Add deployment-specific values to `rearvue/settings_server.py`:
+Copy `rearvue/settings_server.py.example` to the ignored
+`rearvue/settings_server.py`, then add deployment-specific values:
 
 ```python
 MCP_ENABLED = True
@@ -23,19 +24,44 @@ MCP_DEFAULT_PAGE_SIZE = 50
 MCP_MAX_PAGE_SIZE = 100
 MCP_MAX_BULK_ITEMS = 100
 MCP_MAX_RAW_DATA_BYTES = 256 * 1024
+MCP_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024
 MCP_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 ```
 
 Run migrations, then create a client in Django admin under **RearVue MCP → MCP clients**. Choose scopes and domains. Leaving the token field blank generates a high-entropy token; copy the warning after saving because RearVue stores only its SHA-256 digest. Operators may instead supply a token matching `rvmcp_<8 lowercase hex characters>_<at least 32 URL-safe characters>`.
 
-Serve `rearvue.asgi:application` with an ASGI server such as Uvicorn:
+For production, serve `rearvue.asgi:application` through Gunicorn with the
+external Uvicorn worker package included in RearVue's requirements:
+
+```shell
+cd src
+../.venv/bin/gunicorn --config ../deploy/gunicorn.conf.py rearvue.asgi:application
+```
+
+The repository includes matching [production deployment examples](../deploy/README.md)
+for Cloudflare TLS, Nginx, systemd, Gunicorn, and Django settings. The Nginx MCP
+location preserves `Authorization`, disables proxy buffering and caching, and
+uses a two-MiB body limit matching the Django default. MCP responses also emit
+`Cache-Control: no-store` and `X-Accel-Buffering: no` from the application.
+
+Cloudflare must use Full (strict) mode so the Nginx hop is HTTPS. Its account-side
+cache bypass, WAF, and origin-access controls are documented separately because
+they cannot be committed as active infrastructure from this repository. Default
+Gunicorn and Nginx request timeouts are 120 seconds, below Cloudflare's current
+125-second proxied read timeout; long-running work belongs in an asynchronous job
+slice rather than an open request.
+
+Direct Uvicorn remains suitable for local development:
 
 ```shell
 cd src
 uvicorn rearvue.asgi:application --host 127.0.0.1 --port 8000
 ```
 
-Terminate TLS at the application or a trusted reverse proxy. The existing WSGI entry point can continue serving the ordinary site, but it does not expose MCP. Configure clients for `https://archive.example.com/mcp/` with `Authorization: Bearer rvmcp_…`.
+The same ASGI process serves the ordinary synchronous Django site; Django adapts
+those views. The existing WSGI entry point may still serve a separate ordinary
+site process, but WSGI does not expose MCP. Configure clients for
+`https://archive.example.com/mcp/` with `Authorization: Bearer rvmcp_…`.
 
 The endpoint returns 404 while disabled, 401 for missing/invalid/expired/disabled credentials, 403 for an unapproved browser Origin, and 421 for an unapproved Host.
 

@@ -1,0 +1,64 @@
+# Install as a site/server configuration after replacing the hostname and TLS
+# certificate paths. Cloudflare should use Full (strict) mode so $scheme remains
+# https between Cloudflare and this origin.
+
+upstream rearvue_asgi {
+    server 127.0.0.1:8000;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name archive.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name archive.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/archive.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/archive.example.com/privkey.pem;
+
+    # Match only the two supported MCP mount spellings.
+    location ~ ^/mcp/?$ {
+        proxy_pass http://rearvue_asgi;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_set_header Host $host;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+        proxy_no_cache 1;
+        proxy_cache_bypass 1;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+        client_max_body_size 2m;
+
+        add_header Cache-Control "no-store" always;
+        add_header X-Accel-Buffering "no" always;
+    }
+
+    # The same ASGI process serves the existing synchronous Django site.
+    location / {
+        proxy_pass http://rearvue_asgi;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Keep the deployment's existing static/media aliases here. Django serves
+    # them itself only in DEBUG mode.
+}

@@ -1,0 +1,24 @@
+[Unit]
+Description=RearVue Django and MCP ASGI service
+After=network.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=rearvue
+Group=rearvue
+WorkingDirectory=/srv/rearvue/src
+EnvironmentFile=-/etc/rearvue/rearvue.env
+ExecStart=/srv/rearvue/.venv/bin/gunicorn \
+    --config /srv/rearvue/deploy/gunicorn.conf.py \
+    rearvue.asgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillSignal=SIGQUIT
+TimeoutStopSec=45
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

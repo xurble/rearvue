@@ -31,6 +31,7 @@ LOG_LOCATION = settings_server.LOG_LOCATION
 DATA_STORE = settings_server.DATA_STORE
 
 DATABASES = settings_server.DATABASES
+CONN_HEALTH_CHECKS = getattr(settings_server, "CONN_HEALTH_CHECKS", False)
 
 # for the sqlite people :)
 DATABASES["default"]["NAME"] = DATABASES["default"]["NAME"].replace("__BASE_DIR__", BASE_DIR)
@@ -82,6 +83,9 @@ MCP_MAX_PAGE_SIZE = getattr(settings_server, "MCP_MAX_PAGE_SIZE", 100)
 MCP_DEFAULT_PAGE_SIZE = getattr(settings_server, "MCP_DEFAULT_PAGE_SIZE", 50)
 MCP_MAX_BULK_ITEMS = getattr(settings_server, "MCP_MAX_BULK_ITEMS", 100)
 MCP_MAX_RAW_DATA_BYTES = getattr(settings_server, "MCP_MAX_RAW_DATA_BYTES", 256 * 1024)
+MCP_MAX_REQUEST_BODY_BYTES = getattr(
+    settings_server, "MCP_MAX_REQUEST_BODY_BYTES", 2 * 1024 * 1024
+)
 MCP_IDEMPOTENCY_TTL_SECONDS = getattr(
     settings_server, "MCP_IDEMPOTENCY_TTL_SECONDS", 24 * 60 * 60
 )

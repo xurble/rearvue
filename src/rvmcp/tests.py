@@ -324,11 +324,17 @@ class MCPItemServiceTests(MCPTestMixin, TestCase):
 
 
 class MCPAuthenticationMiddlewareTests(MCPTestMixin, TestCase):
-    def run_request(self, headers=None, enabled=True):
+    def run_request(self, headers=None, enabled=True, downstream_headers=None):
         messages = []
 
         async def downstream(scope, receive, send):
-            await send({"type": "http.response.start", "status": 204, "headers": []})
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 204,
+                    "headers": downstream_headers or [],
+                }
+            )
             await send({"type": "http.response.body", "body": b""})
 
         async def execute():
@@ -356,13 +362,17 @@ class MCPAuthenticationMiddlewareTests(MCPTestMixin, TestCase):
         return messages[0]["status"], dict(messages[0].get("headers", []))
 
     def test_disabled_server_is_not_discoverable(self):
-        status, _ = self.run_request(enabled=False)
+        status, headers = self.run_request(enabled=False)
         self.assertEqual(status, 404)
+        self.assertEqual(headers[b"cache-control"], b"no-store")
+        self.assertEqual(headers[b"x-accel-buffering"], b"no")
 
     def test_requires_bearer_token(self):
         status, headers = self.run_request()
         self.assertEqual(status, 401)
         self.assertIn(b"www-authenticate", headers)
+        self.assertEqual(headers[b"cache-control"], b"no-store")
+        self.assertEqual(headers[b"x-accel-buffering"], b"no")
 
     def test_rejects_unlisted_browser_origin(self):
         status, _ = self.run_request(
@@ -375,13 +385,19 @@ class MCPAuthenticationMiddlewareTests(MCPTestMixin, TestCase):
 
     @override_settings(MCP_ALLOWED_ORIGINS=["https://trusted.example"])
     def test_accepts_authenticated_allowed_origin(self):
-        status, _ = self.run_request(
+        status, headers = self.run_request(
             headers=[
                 (b"authorization", f"Bearer {self.token}".encode()),
                 (b"origin", b"https://trusted.example"),
-            ]
+            ],
+            downstream_headers=[
+                (b"cache-control", b"public"),
+                (b"x-accel-buffering", b"yes"),
+            ],
         )
         self.assertEqual(status, 204)
+        self.assertEqual(headers[b"cache-control"], b"no-store")
+        self.assertEqual(headers[b"x-accel-buffering"], b"no")
 
 
 class MCPTransportContractTests(MCPTestMixin, TransactionTestCase):
@@ -454,6 +470,7 @@ class MCPTransportContractTests(MCPTestMixin, TransactionTestCase):
         self.assertEqual(discovered.status_code, 200)
         structured = discovered.json()["result"]["structuredContent"]
         self.assertEqual(structured["contract_version"], "1.0")
+        self.assertEqual(structured["limits"]["maximum_request_body_bytes"], 2 * 1024 * 1024)
 
 
 class MCPConcurrencyTests(MCPTestMixin, TransactionTestCase):

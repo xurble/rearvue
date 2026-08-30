@@ -10,7 +10,11 @@ current_client_id = ContextVar("rvmcp_current_client_id", default=None)
 
 
 async def _respond(send, status, body=b"", headers=None):
-    response_headers = [(b"content-type", b"text/plain; charset=utf-8")]
+    response_headers = [
+        (b"content-type", b"text/plain; charset=utf-8"),
+        (b"cache-control", b"no-store"),
+        (b"x-accel-buffering", b"no"),
+    ]
     response_headers.extend(headers or [])
     await send({"type": "http.response.start", "status": status, "headers": response_headers})
     await send({"type": "http.response.body", "body": body})
@@ -54,6 +58,22 @@ class MCPAuthenticationMiddleware:
 
         context_token = current_client_id.set(client.id)
         try:
-            await self.app(scope, receive, send)
+            async def send_unbuffered(message):
+                if message["type"] == "http.response.start":
+                    headers = [
+                        (name, value)
+                        for name, value in message.get("headers", [])
+                        if name.lower() not in {b"cache-control", b"x-accel-buffering"}
+                    ]
+                    headers.extend(
+                        [
+                            (b"cache-control", b"no-store"),
+                            (b"x-accel-buffering", b"no"),
+                        ]
+                    )
+                    message = {**message, "headers": headers}
+                await send(message)
+
+            await self.app(scope, receive, send_unbuffered)
         finally:
             current_client_id.reset(context_token)

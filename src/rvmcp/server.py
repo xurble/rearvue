@@ -35,7 +35,7 @@ mcp = FastMCP(
     streamable_http_path="/",
     stateless_http=True,
     json_response=True,
-    max_request_body_size=2 * 1024 * 1024,
+    max_request_body_size=settings.MCP_MAX_REQUEST_BODY_BYTES,
     transport_security=TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=list(settings.MCP_ALLOWED_HOSTS),
@@ -89,6 +89,7 @@ async def discover() -> dict[str, Any]:
                 "maximum_page_size": settings.MCP_MAX_PAGE_SIZE,
                 "maximum_bulk_items": settings.MCP_MAX_BULK_ITEMS,
                 "maximum_raw_data_bytes": settings.MCP_MAX_RAW_DATA_BYTES,
+                "maximum_request_body_bytes": settings.MCP_MAX_REQUEST_BODY_BYTES,
                 "idempotency_ttl_seconds": settings.MCP_IDEMPOTENCY_TTL_SECONDS,
             },
             "pagination": {"ordering": ["datetime_created:desc", "id:desc"], "cursor": "opaque"},

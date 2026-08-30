@@ -80,7 +80,9 @@ filelock==3.32.4
 flickrapi==2.4.0
     # via -r requirements.in
 gunicorn==26.2.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   uvicorn-worker
 h11==0.16.0
     # via
     #   httpcore
@@ -254,7 +256,11 @@ typing-inspection==0.4.4
 urllib3==2.7.0
     # via requests
 uvicorn==0.52.4
-    # via mcp
+    # via
+    #   mcp
+    #   uvicorn-worker
+uvicorn-worker==0.4.0
+    # via -r requirements.in
 webencodings==0.6.1
     # via
     #   bleach

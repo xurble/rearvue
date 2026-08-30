@@ -1,0 +1,73 @@
+"""Example production settings for Cloudflare -> Nginx -> RearVue ASGI.
+
+Copy to settings_server.py and supply deployment secrets through the environment.
+The real settings_server.py is intentionally ignored by Git.
+"""
+
+import os
+from pathlib import Path
+
+
+def env_bool(name, default=False):
+    return os.getenv(name, str(default)).lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name, default=""):
+    return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
+
+
+DEPLOY_ROOT = Path(os.getenv("REARVUE_DEPLOY_ROOT", "/srv/rearvue"))
+
+SECRET_KEY = os.environ["REARVUE_SECRET_KEY"]
+DEBUG = env_bool("REARVUE_DEBUG", False)
+ALLOWED_HOSTS = env_list("REARVUE_ALLOWED_HOSTS", "archive.example.com")
+DEFAULT_DOMAIN_PROTOCOL = "https"
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.environ["REARVUE_DB_NAME"],
+        "USER": os.environ["REARVUE_DB_USER"],
+        "PASSWORD": os.environ["REARVUE_DB_PASSWORD"],
+        "HOST": os.getenv("REARVUE_DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("REARVUE_DB_PORT", "3306"),
+        "CONN_MAX_AGE": int(os.getenv("REARVUE_DB_CONN_MAX_AGE", "60")),
+    }
+}
+CONN_HEALTH_CHECKS = True
+
+DATA_STORE = os.getenv("REARVUE_DATA_STORE", str(DEPLOY_ROOT / "data"))
+LOG_LOCATION = os.getenv("REARVUE_LOG_LOCATION", str(DEPLOY_ROOT / "logs/rearvue.log"))
+STATIC_ROOT = os.getenv("REARVUE_STATIC_ROOT", str(DEPLOY_ROOT / "static"))
+MEDIA_ROOT = os.getenv("REARVUE_MEDIA_ROOT", str(DEPLOY_ROOT / "media"))
+
+FLICKR_KEY = os.getenv("FLICKR_KEY", "")
+FLICKR_SECRET = os.getenv("FLICKR_SECRET", "")
+INSTAGRAM_KEY = os.getenv("INSTAGRAM_KEY", "")
+INSTAGRAM_SECRET = os.getenv("INSTAGRAM_SECRET", "")
+FEEDS_SERVER = os.getenv("FEEDS_SERVER", "")
+
+# Trust X-Forwarded-Proto only because Nginx overwrites it and the origin should
+# accept traffic only from Cloudflare. The included Nginx config sets it from
+# Nginx's own TLS scheme rather than trusting a client-supplied value.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = int(os.getenv("REARVUE_HSTS_SECONDS", "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("REARVUE_HSTS_INCLUDE_SUBDOMAINS", True)
+SECURE_HSTS_PRELOAD = env_bool("REARVUE_HSTS_PRELOAD", False)
+
+MCP_ENABLED = env_bool("REARVUE_MCP_ENABLED", False)
+MCP_ALLOWED_HOSTS = env_list("REARVUE_MCP_ALLOWED_HOSTS", "archive.example.com")
+MCP_ALLOWED_ORIGINS = env_list("REARVUE_MCP_ALLOWED_ORIGINS")
+MCP_DEFAULT_PAGE_SIZE = int(os.getenv("REARVUE_MCP_DEFAULT_PAGE_SIZE", "50"))
+MCP_MAX_PAGE_SIZE = int(os.getenv("REARVUE_MCP_MAX_PAGE_SIZE", "100"))
+MCP_MAX_BULK_ITEMS = int(os.getenv("REARVUE_MCP_MAX_BULK_ITEMS", "100"))
+MCP_MAX_RAW_DATA_BYTES = int(os.getenv("REARVUE_MCP_MAX_RAW_DATA_BYTES", str(256 * 1024)))
+MCP_MAX_REQUEST_BODY_BYTES = int(
+    os.getenv("REARVUE_MCP_MAX_REQUEST_BODY_BYTES", str(2 * 1024 * 1024))
+)
+MCP_IDEMPOTENCY_TTL_SECONDS = int(
+    os.getenv("REARVUE_MCP_IDEMPOTENCY_TTL_SECONDS", str(24 * 60 * 60))
+)
