@@ -6,21 +6,28 @@ Public entry points used elsewhere in the app:
 
 See: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login
 """
+
 from __future__ import annotations
 
 import datetime
 import json
 import logging
-from typing import Any, Dict, Iterator, List, Optional
+from collections.abc import Iterator
+from typing import Any
 
 import requests
 from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-
-from rvsite.models import RVItem, RVMedia, RVService
-from rearvue import utils
 from PIL import Image
+
+from rearvue import utils
+from rvservices.results import (
+    OPERATIONAL_EXCEPTIONS,
+    OperationResult,
+    log_safe_exception,
+)
+from rvsite.models import RVItem, RVMedia, RVService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +45,7 @@ def graph_instagram_base() -> str:
     return f"https://graph.instagram.com/{ver}"
 
 
-def _normalize_mirror_media_type(media_type: Optional[str]) -> str:
+def _normalize_mirror_media_type(media_type: str | None) -> str:
     if not media_type:
         return "IMAGE"
     if media_type == "REELS":
@@ -46,7 +53,7 @@ def _normalize_mirror_media_type(media_type: Optional[str]) -> str:
     return media_type
 
 
-def map_graph_media_to_raw_data(media: Dict[str, Any]) -> Dict[str, Any]:
+def map_graph_media_to_raw_data(media: dict[str, Any]) -> dict[str, Any]:
     """Map a single IG Media JSON object to the raw_data shape used by mirroring."""
     mid = str(media["id"])
     caption = media.get("caption") or ""
@@ -56,7 +63,7 @@ def map_graph_media_to_raw_data(media: Dict[str, Any]) -> Dict[str, Any]:
     children_in = (media.get("children") or {}).get("data") or []
 
     if mtype == "CAROUSEL_ALBUM":
-        child_payloads: List[Dict[str, Any]] = []
+        child_payloads: list[dict[str, Any]] = []
         for ch in children_in:
             cm = _normalize_mirror_media_type(ch.get("media_type"))
             child_payloads.append(
@@ -66,7 +73,9 @@ def map_graph_media_to_raw_data(media: Dict[str, Any]) -> Dict[str, Any]:
                     "thumbnail_url": ch.get("thumbnail_url"),
                 }
             )
-        first_url = child_payloads[0]["media_url"] if child_payloads else media.get("media_url")
+        first_url = (
+            child_payloads[0]["media_url"] if child_payloads else media.get("media_url")
+        )
         first_thumb = (
             child_payloads[0].get("thumbnail_url")
             if child_payloads
@@ -106,12 +115,16 @@ def parse_graph_timestamp(ts: str) -> datetime.datetime:
     return dt.replace(tzinfo=None)
 
 
-def _graph_get(url: str, params: Optional[dict] = None) -> dict:
+def _graph_get(url: str, params: dict | None = None) -> dict:
     # When `url` is a full paging.next URL, do not pass extra params.
-    r = requests.get(url, params=params, timeout=60) if params is not None else requests.get(url, timeout=60)
+    r = (
+        requests.get(url, params=params, timeout=60)
+        if params is not None
+        else requests.get(url, timeout=60)
+    )
     try:
         data = r.json()
-    except Exception:
+    except json.JSONDecodeError:
         r.raise_for_status()
         raise
     if not r.ok:
@@ -122,7 +135,7 @@ def _graph_get(url: str, params: Optional[dict] = None) -> dict:
     return data
 
 
-def refresh_long_lived_token(access_token: str) -> Dict[str, Any]:
+def refresh_long_lived_token(access_token: str) -> dict[str, Any]:
     """Extend a valid long-lived Instagram user token (server-side)."""
     url = "https://graph.instagram.com/refresh_access_token"
     return _graph_get(
@@ -134,7 +147,7 @@ def refresh_long_lived_token(access_token: str) -> Dict[str, Any]:
     )
 
 
-def exchange_short_lived_for_long_lived(short_lived_token: str) -> Dict[str, Any]:
+def exchange_short_lived_for_long_lived(short_lived_token: str) -> dict[str, Any]:
     url = "https://graph.instagram.com/access_token"
     return _graph_get(
         url,
@@ -165,21 +178,37 @@ def maybe_refresh_service_token(service: RVService) -> None:
         credentials = {**service.credentials, "access_token": out["access_token"]}
         sec = int(out.get("expires_in", 0))
         if sec:
-            credentials["token_expires_at"] = (now + datetime.timedelta(seconds=sec)).isoformat()
+            credentials["token_expires_at"] = (
+                now + datetime.timedelta(seconds=sec)
+            ).isoformat()
         credentials["last_token_refresh_at"] = now.isoformat()
         service.credentials = credentials
         service.save(update_fields=["credentials"])
         logger.info("Refreshed Instagram token for service id=%s", service.id)
-    except Exception as e:
-        logger.warning("Instagram token refresh failed for service id=%s: %s", service.id, e)
+    except (
+        requests.RequestException,
+        KeyError,
+        TypeError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        log_safe_exception(
+            logger,
+            "Instagram token refresh failed service_id=%s",
+            service.id,
+            exc=exc,
+            level=logging.WARNING,
+        )
 
 
-def fetch_me(access_token: str) -> Dict[str, Any]:
+def fetch_me(access_token: str) -> dict[str, Any]:
     base = graph_instagram_base()
-    return _graph_get(f"{base}/me", {"fields": "id,username", "access_token": access_token})
+    return _graph_get(
+        f"{base}/me", {"fields": "id,username", "access_token": access_token}
+    )
 
 
-def fetch_media_object(access_token: str, media_id: str) -> Dict[str, Any]:
+def fetch_media_object(access_token: str, media_id: str) -> dict[str, Any]:
     base = graph_instagram_base()
     return _graph_get(
         f"{base}/{media_id}",
@@ -187,10 +216,10 @@ def fetch_media_object(access_token: str, media_id: str) -> Dict[str, Any]:
     )
 
 
-def iter_user_media(access_token: str, user_id: str) -> Iterator[Dict[str, Any]]:
+def iter_user_media(access_token: str, user_id: str) -> Iterator[dict[str, Any]]:
     base = graph_instagram_base()
     url = f"{base}/{user_id}/media"
-    params: Dict[str, Any] = {
+    params: dict[str, Any] = {
         "fields": MEDIA_FIELDS,
         "access_token": access_token,
         "limit": 100,
@@ -213,19 +242,16 @@ def iter_user_media(access_token: str, user_id: str) -> Iterator[Dict[str, Any]]
             break
 
 
-def _download_binary(url: str) -> Optional[bytes]:
+def _download_binary(url: str) -> bytes:
     safe = utils.validate_public_http_url(url)
     if not safe:
-        logger.warning("Blocked or invalid media URL host")
-        return None
+        raise ValueError("Blocked or invalid Instagram media URL")
     ret = requests.get(safe, timeout=120, verify=True)
-    if not ret.ok:
-        logger.warning("Media download failed: %s", ret.status_code)
-        return None
+    ret.raise_for_status()
     return ret.content
 
 
-def _media_items_from_raw(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _media_items_from_raw(data: dict[str, Any]) -> list[dict[str, Any]]:
     if data.get("media_type") == "CAROUSEL_ALBUM":
         children = data.get("children") or {}
         items = children.get("data") or []
@@ -246,10 +272,14 @@ def mirror_instagram(specific_item=None):
             )[:50]
         )
 
+    result = OperationResult()
     for item in queue:
         try:
-            title_preview = (item.title or "")[:50]
-            logger.info("Mirroring Instagram item id=%s title=%s...", item.id, title_preview)
+            logger.info(
+                "Mirroring Instagram service_id=%s item_id=%s",
+                item.service_id,
+                item.id,
+            )
             data = json.loads(item.raw_data or "{}")
 
             for m in item.rvmedia_set.all():
@@ -257,8 +287,7 @@ def mirror_instagram(specific_item=None):
 
             media_items = _media_items_from_raw(data)
             if not media_items:
-                logger.warning("No media payloads for item id=%s", item.id)
-                continue
+                raise ValueError("Instagram item has no media payloads")
 
             for media_item in media_items:
                 rvm = RVMedia()
@@ -267,14 +296,9 @@ def mirror_instagram(specific_item=None):
 
                 media_url = media_item.get("media_url")
                 if not media_url:
-                    logger.warning("Missing media_url for item id=%s", item.id)
-                    rvm.delete()
-                    continue
+                    raise ValueError("Instagram media payload has no media URL")
 
                 content = _download_binary(media_url)
-                if not content:
-                    rvm.delete()
-                    continue
 
                 mtype = media_item.get("media_type") or "IMAGE"
 
@@ -308,31 +332,39 @@ def mirror_instagram(specific_item=None):
                     thumbnail_url = media_item.get("thumbnail_url")
                     if thumbnail_url:
                         tdata = _download_binary(thumbnail_url)
-                        if tdata:
-                            output_path = rvm.make_thumbnail_path("jpg")
-                            target_path = utils.make_full_path(output_path)
-                            utils.make_folder(target_path)
-                            with open(target_path, "wb") as fh:
-                                fh.write(tdata)
+                        output_path = rvm.make_thumbnail_path("jpg")
+                        target_path = utils.make_full_path(output_path)
+                        utils.make_folder(target_path)
+                        with open(target_path, "wb") as fh:
+                            fh.write(tdata)
                 else:
-                    logger.warning("Unknown media_type %s for item id=%s", mtype, item.id)
-                    rvm.delete()
-                    continue
+                    raise ValueError("Unsupported Instagram media type")
 
                 rvm.primary_media = rvm.original_media
                 rvm.save()
 
-            if item.rvmedia_set.exists():
-                item.mirror_state = 1
-                item.save(update_fields=["mirror_state"])
+            if not item.rvmedia_set.exists():
+                raise ValueError("Instagram item produced no mirrored media")
+            item.mirror_state = 1
+            item.save(update_fields=["mirror_state"])
+            result += OperationResult(processed=1)
 
-        except Exception as ex:
-            logger.exception("Error mirroring Instagram item id=%s: %s", item.id, ex)
+        except OPERATIONAL_EXCEPTIONS as exc:
+            item.rvmedia_set.all().delete()
+            log_safe_exception(
+                logger,
+                "Instagram mirror failed service_id=%s item_id=%s",
+                item.service_id,
+                item.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result
 
 
-def update_instagram() -> None:
+def update_instagram() -> OperationResult:
     """Management command / cron entry: sync all live Instagram services."""
-    sync_all_instagram_services()
+    return sync_all_instagram_services()
 
 
 def fix_instagram_item(itemid):
@@ -361,38 +393,49 @@ def fix_instagram_item(itemid):
 
         cap = post_data.get("caption") or ""
         dbitem.title = (cap[:512]) if cap else ""
-        dbitem.datetime_created = parse_graph_timestamp(post_data.get("timestamp") or "")
+        dbitem.datetime_created = parse_graph_timestamp(
+            post_data.get("timestamp") or ""
+        )
         dbitem.date_created = dbitem.datetime_created.date()
         dbitem.remote_url = (post_data.get("permalink") or "")[:512]
         dbitem.raw_data = json.dumps(post_data)
         dbitem.mirror_state = 0
         dbitem.save()
 
-        mirror_instagram(specific_item=dbitem)
+        result = mirror_instagram(specific_item=dbitem)
+        if result.failed:
+            return (False, "Instagram item mirror failed; see operational logs")
         return (True, "Item updated successfully!")
-    except Exception as e:
-        return (False, f"Error updating item: {str(e)}")
+    except OPERATIONAL_EXCEPTIONS as exc:
+        log_safe_exception(
+            logger,
+            "Instagram item repair failed service_id=%s item_id=%s",
+            svc.id,
+            dbitem.id,
+            exc=exc,
+        )
+        return (False, "Instagram item update failed; see operational logs")
 
 
-def sync_instagram_service(service: RVService) -> int:
+def sync_instagram_service(service: RVService) -> OperationResult:
     """
     Fetch media from Instagram Graph and upsert RVItem rows; mirror new/pending media.
-    Returns number of media objects processed this run.
+    Returns processed and failed media counts for this run.
     """
     if utils.hours_since(service.last_checked) < 12:
         logger.info("Skipping Instagram service id=%s (checked < 12h ago)", service.id)
-        return 0
+        return OperationResult()
 
     access_token = service.credentials.get("access_token", "")
     user_id = service.config.get("user_id", "")
     if not access_token or not user_id:
         logger.warning("Instagram service id=%s missing token or userid", service.id)
-        return 0
+        return OperationResult(failed=1)
 
     maybe_refresh_service_token(service)
     service.refresh_from_db()
 
-    processed = 0
+    result = OperationResult()
     for media in iter_user_media(service.credentials["access_token"], user_id):
         post_id = str(media["id"])
         # Media are returned newest-first; stop when we reach an already-mirrored post.
@@ -402,10 +445,15 @@ def sync_instagram_service(service: RVService) -> int:
             break
         try:
             post_data = map_graph_media_to_raw_data(media)
-            item, created = RVItem.objects.get_or_create(
+            created_at = parse_graph_timestamp(post_data.get("timestamp") or "")
+            item, _created = RVItem.objects.get_or_create(
                 service=service,
                 item_id=post_id,
-                defaults={"domain": service.domain},
+                defaults={
+                    "domain": service.domain,
+                    "date_created": created_at.date(),
+                    "datetime_created": created_at,
+                },
             )
             cap = post_data.get("caption") or ""
             if cap:
@@ -413,28 +461,49 @@ def sync_instagram_service(service: RVService) -> int:
             else:
                 item.title = ""
 
-            item.datetime_created = parse_graph_timestamp(post_data.get("timestamp") or "")
+            item.datetime_created = created_at
             item.date_created = item.datetime_created.date()
             item.remote_url = (post_data.get("permalink") or "")[:512]
             item.raw_data = json.dumps(post_data)
             item.save()
 
+            item_result = OperationResult(processed=1)
             if item.mirror_state == 0:
-                mirror_instagram(specific_item=item)
+                item_result += mirror_instagram(specific_item=item)
+            result += item_result
+        except OPERATIONAL_EXCEPTIONS as exc:
+            log_safe_exception(
+                logger,
+                "Instagram item ingest failed service_id=%s",
+                service.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
 
-            processed += 1
-        except Exception as e:
-            logger.exception("Error processing Instagram media for service id=%s: %s", service.id, e)
-
-    service.last_checked = timezone.now()
-    service.save(update_fields=["last_checked"])
-    return processed
+    if not result.failed:
+        service.last_checked = timezone.now()
+        service.save(update_fields=["last_checked"])
+    return result
 
 
-def sync_all_instagram_services() -> None:
+def sync_all_instagram_services() -> OperationResult:
+    result = OperationResult()
     for service in RVService.objects.filter(type="instagram", live=True):
         try:
-            n = sync_instagram_service(service)
-            logger.info("Instagram sync service id=%s processed %s media objects", service.id, n)
-        except Exception as e:
-            logger.exception("Instagram sync failed for service id=%s: %s", service.id, e)
+            service_result = sync_instagram_service(service)
+            result += service_result
+            logger.info(
+                "Instagram sync service_id=%s processed=%s failed=%s",
+                service.id,
+                service_result.processed,
+                service_result.failed,
+            )
+        except Exception as exc:  # noqa: BLE001 - service isolation boundary.
+            log_safe_exception(
+                logger,
+                "Instagram sync failed service_id=%s",
+                service.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result

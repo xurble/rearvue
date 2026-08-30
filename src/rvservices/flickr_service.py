@@ -1,203 +1,236 @@
-
-import time
 import datetime
-import os
-
-from rvsite.models import *
-from rearvue import utils
-
-from django.utils import timezone
-import flickrapi
-
 import json
-import requests
+import logging
 
+import flickrapi
 from django.conf import settings
-
+from django.utils import timezone
 from PIL import Image
- 
+
+from rearvue import utils
+from rvservices.results import (
+    OPERATIONAL_EXCEPTIONS,
+    OperationResult,
+    log_safe_exception,
+)
+from rvsite.models import RVItem, RVMedia, RVService
+
+logger = logging.getLogger(__name__)
+
+
+def _flickr_client(service):
+    token = flickrapi.auth.FlickrAccessToken(
+        token=service.credentials.get("access_token", ""),
+        token_secret=service.credentials.get("token_secret", ""),
+        access_level="read",
+        username=service.config.get("username", ""),
+        user_nsid=service.config.get("user_id", ""),
+    )
+    return flickrapi.FlickrAPI(
+        settings.FLICKR_KEY,
+        settings.FLICKR_SECRET,
+        token=token,
+        format="parsed-json",
+    )
+
+
 def update_flickr():
-
-    f_services = RVService.objects.filter(type="flickr")
-    
-    for service in f_services:
-
-        config = service.config
-        credentials = service.credentials
-        state = service.state
-
+    result = OperationResult()
+    for service in RVService.objects.filter(type="flickr", live=True):
         if utils.hours_since(service.last_checked) < 12:
-            print("Skipping {s} (too soon)".format(s=service))
-        else:
-            print("Updating {s}".format(s=service))
-        
-            """
-            def __init__(self, token, token_secret, access_level,
-                         fullname=u'', username=u'', user_nsid=u''):
-            """
+            logger.info(
+                "Skipping Flickr service_id=%s checked_within_hours=12", service.id
+            )
+            continue
 
-            token = flickrapi.auth.FlickrAccessToken(token=credentials.get("access_token", ""), token_secret=credentials.get("token_secret", ""), access_level='read', username=config.get("username", ""), user_nsid=config.get("user_id", ""))
-    
-            f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
+        try:
+            result += _update_flickr_service(service)
+        except Exception as exc:  # noqa: BLE001 - provider isolation boundary.
+            log_safe_exception(
+                logger,
+                "Flickr update failed service_id=%s",
+                service.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result
 
-            if config.get("user_id", "") == "":
-                try:
-                    u = f.people.findByUsername(username=config.get("username", ""))
-            
-                    config = {**config, "user_id": u["user"]["id"]}
-                    service.config = config
-                    service.save(update_fields=["config"])
-                except Exception as ex:        
-                    print(ex)
-                    return
-        
-        
-            page = 0
-            pages = 1
-            max_upload_date = 0
-            while page < pages:
-                page += 1
-                print("Getting page ", page)
-  
-                if state.get("max_update_id", "") != "":
-                    min_date = state["max_update_id"]
-                else:
-                    min_date = None
-                
-                pix = f.people.getPhotos(
-                    extras="date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,url_z,url_m,description,media,geo",
-                    user_id=config.get("user_id", ""),
-                    page=page,
-                    min_upload_date=min_date)["photos"]
-            
-                pages = int(pix["pages"])
-            
-                for i in pix["photo"]:
-                            
-                    dateupload = int(i["dateupload"])
-                
-                    if dateupload > max_upload_date:
-                        max_upload_date = dateupload
 
-                    try:
-                        item = RVItem.objects.filter(service=service).filter(item_id=i["id"])[0]
-                    except:
-                        print("NEW!")
-                        item = RVItem(item_id=i["id"],service=service,domain=service.domain)
+def _update_flickr_service(service):
+    client = _flickr_client(service)
+    config = service.config
+    if not config.get("user_id"):
+        user = client.people.findByUsername(username=config.get("username", ""))
+        config = {**config, "user_id": user["user"]["id"]}
+        service.config = config
+        service.save(update_fields=["config"])
 
-                    item.title = i["title"]
-                    item.caption = i["description"]["_content"]
-                
-                    item.public = (i["ispublic"] == 1)
-                
-                    if "datetaken"  in i:
-                        taken_datetime  = datetime.datetime.strptime(i["datetaken"],'%Y-%m-%d %H:%M:%S')
-                    else:
-                        taken_datetime = datetime.datetime.fromtimestamp(dateupload)
-                    
-                    item.datetime_created = taken_datetime
-                    item.date_created     = taken_datetime.date()
-                
-                    item.remote_url = "https://www.flickr.com/photos/%s/%s/" % (config.get("username", ""), i["id"])
+    page = 0
+    pages = 1
+    max_upload_date = 0
+    result = OperationResult()
+    while page < pages:
+        page += 1
+        logger.debug("Fetching Flickr page service_id=%s page=%s", service.id, page)
+        minimum_date = service.state.get("max_update_id") or None
+        response = client.people.getPhotos(
+            extras=(
+                "date_upload,date_taken,geo,machine_tags,url_t,url_o,url_l,"
+                "url_z,url_m,description,media,geo"
+            ),
+            user_id=config["user_id"],
+            page=page,
+            min_upload_date=minimum_date,
+        )["photos"]
+        pages = int(response["pages"])
 
-                    item.raw_data = json.dumps(i)
-                
-                    item.save()
-        
-            if max_upload_date:                
-                service.state = {**state, "max_update_id": str(max_upload_date)}
-            service.last_checked = timezone.now()
-            service.save(update_fields=["state", "last_checked"])
+        for photo in response["photo"]:
+            try:
+                upload_date = int(photo["dateupload"])
+                max_upload_date = max(max_upload_date, upload_date)
+                _upsert_flickr_item(service, config, photo, upload_date)
+                result += OperationResult(processed=1)
+            except OPERATIONAL_EXCEPTIONS as exc:
+                log_safe_exception(
+                    logger,
+                    "Flickr item ingest failed service_id=%s",
+                    service.id,
+                    exc=exc,
+                )
+                result += OperationResult(failed=1)
+
+    if not result.failed:
+        if max_upload_date:
+            service.state = {
+                **service.state,
+                "max_update_id": str(max_upload_date),
+            }
+        service.last_checked = timezone.now()
+        service.save(update_fields=["state", "last_checked"])
+    return result
+
+
+def _upsert_flickr_item(service, config, photo, upload_date):
+    if "datetaken" in photo:
+        taken_datetime = datetime.datetime.strptime(
+            photo["datetaken"], "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=datetime.UTC)
+    else:
+        taken_datetime = datetime.datetime.fromtimestamp(upload_date, tz=datetime.UTC)
+    item, _created = RVItem.objects.get_or_create(
+        service=service,
+        item_id=photo["id"],
+        defaults={
+            "domain": service.domain,
+            "date_created": taken_datetime.date(),
+            "datetime_created": taken_datetime,
+        },
+    )
+    item.title = photo["title"]
+    item.caption = photo["description"]["_content"]
+    item.public = photo["ispublic"] == 1
+    item.datetime_created = taken_datetime
+    item.date_created = taken_datetime.date()
+    item.remote_url = "https://www.flickr.com/photos/{username}/{id}/".format(
+        username=config.get("username", ""), id=photo["id"]
+    )
+    item.raw_data = json.dumps(photo)
+    item.save()
 
 
 def mirror_flickr():
+    result = OperationResult()
+    for service in RVService.objects.filter(type="flickr", live=True):
+        try:
+            client = _flickr_client(service)
+        except Exception as exc:  # noqa: BLE001 - client setup boundary.
+            log_safe_exception(
+                logger,
+                "Flickr client setup failed service_id=%s",
+                service.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+            continue
 
-    f_services = RVService.objects.filter(type="flickr")
-    
-    for service in f_services:
-
-        token = flickrapi.auth.FlickrAccessToken(token=service.credentials.get("access_token", ""), token_secret=service.credentials.get("token_secret", ""), access_level='read', username=service.config.get("username", ""), user_nsid=service.config.get("user_id", ""))
-        f = flickrapi.FlickrAPI(settings.FLICKR_KEY, settings.FLICKR_SECRET, token=token, format='parsed-json')
-    
-        queue = RVItem.objects.filter(mirror_state=0).filter(service=service)[:100]
-
+        queue = RVItem.objects.filter(mirror_state=0, service=service)[:100]
         for item in queue:
-            print(item.title.encode("utf-8"))
-            data = json.loads(item.raw_data)
-
-            rvm = RVMedia()
-            rvm.item = item
-            rvm.save()
-            
-            print(item.date_created)
-            
-
-            if data["media"] == "photo":
-                ret = requests.get(data["url_o"],timeout=30, verify=True)
-                ext = data["url_o"].split(".")[-1]
-                rvm.media_type = 1
-            else:
-                size_list = f.photos.getSizes(photo_id=item.item_id)["sizes"]["size"]  
-
-                ret = None
-                for size in size_list:
-                    if size["label"] == "Video Original":
-                        ret = requests.get(size["source"],timeout=30, verify=True)
-                        rvm.media_type = 2
-                        ext = "mp4" # <------ need to go get that video        
-
-            if ret.ok:
-                output_path = rvm.make_original_path(ext)
-        
-                target_path = utils.make_full_path(output_path)
-    
-                utils.make_folder(target_path)
-
-                fh = open(target_path,"wb")
-                fh.write(ret.content)
-                fh.close()
-            
-            sz = "url_l"
-            if sz not in data:
-                sz = "url_m"
-            if sz not in data:
-                sz = "url_o"
-        
-            ret2 = requests.get(data[sz],timeout=30, verify=True)
-
-            ext = data[sz].split(".")[-1]
-
-            if ret2.ok:
-                output_path = rvm.make_primary_path(ext)
-                    
-                target_path = utils.make_full_path(output_path)
-    
-                utils.make_folder(target_path) # <- no way this doesn't exist?
-    
-                fh = open(target_path,"wb")
-                fh.write(ret2.content)
-                fh.close()
-            
-                img = Image.open(target_path)
-            
-                ratio = float(img.size[0]) / float(img.size[1])
-            
-                w = 300
-                h = int(300 / ratio)
-            
-                print("resizing thumbnail" , w, h)
-            
-            
-                img = img.resize((w,h),Image.BICUBIC)
-
-                output_path = rvm.make_thumbnail_path(ext)
-                    
-                target_path = utils.make_full_path(output_path)
-
-                img.save(target_path)
-    
-                rvm.save()
+            try:
+                _mirror_flickr_item(client, item)
                 item.mirror_state = 1
-                item.save()
-                
-                
+                item.save(update_fields=["mirror_state"])
+                result += OperationResult(processed=1)
+            except OPERATIONAL_EXCEPTIONS as exc:
+                item.rvmedia_set.all().delete()
+                log_safe_exception(
+                    logger,
+                    "Flickr mirror failed service_id=%s item_id=%s",
+                    service.id,
+                    item.id,
+                    exc=exc,
+                )
+                result += OperationResult(failed=1)
+    return result
+
+
+def _mirror_flickr_item(client, item):
+    data = json.loads(item.raw_data)
+    item.rvmedia_set.all().delete()
+    media = RVMedia.objects.create(item=item)
+
+    if data["media"] == "photo":
+        original_url = data["url_o"]
+        original = utils.get_public_url(original_url, timeout=30)
+        original.raise_for_status()
+        original_extension = utils.get_extension(original_url)
+        media.media_type = 1
+    else:
+        sizes = client.photos.getSizes(photo_id=item.item_id)["sizes"]["size"]
+        video = next(
+            (size for size in sizes if size["label"] == "Video Original"),
+            None,
+        )
+        if video is None:
+            raise ValueError("Flickr video has no original source")
+        original = utils.get_public_url(video["source"], timeout=30)
+        original.raise_for_status()
+        original_extension = "mp4"
+        media.media_type = 2
+
+    _write_media_content(media.make_original_path(original_extension), original.content)
+
+    primary_key = next(
+        (key for key in ("url_l", "url_m", "url_o") if key in data),
+        None,
+    )
+    if primary_key is None:
+        raise ValueError("Flickr item has no primary image source")
+    primary_url = data[primary_key]
+    primary = utils.get_public_url(primary_url, timeout=30)
+    primary.raise_for_status()
+    primary_extension = utils.get_extension(primary_url) or "jpg"
+    primary_path = _write_media_content(
+        media.make_primary_path(primary_extension), primary.content
+    )
+
+    with Image.open(primary_path) as image:
+        ratio = float(image.size[0]) / float(image.size[1])
+        width = 300
+        height = max(1, int(300 / ratio))
+        logger.debug(
+            "Resizing Flickr thumbnail item_id=%s width=%s height=%s",
+            item.id,
+            width,
+            height,
+        )
+        image = image.resize((width, height), Image.BICUBIC)
+        image.save(utils.make_full_path(media.make_thumbnail_path(primary_extension)))
+    media.save()
+
+
+def _write_media_content(local_path, content):
+    target_path = utils.make_full_path(local_path)
+    utils.make_folder(target_path)
+    with open(target_path, "wb") as output:
+        output.write(content)
+    return target_path
