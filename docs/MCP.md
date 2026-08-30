@@ -28,7 +28,13 @@ MCP_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024
 MCP_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 ```
 
-Run migrations, then create a client in Django admin under **RearVue MCP → MCP clients**. Choose scopes and domains. Leaving the token field blank generates a high-entropy token; copy the warning after saving because RearVue stores only its SHA-256 digest. Operators may instead supply a token matching `rvmcp_<8 lowercase hex characters>_<at least 32 URL-safe characters>`.
+Stop Gunicorn and importer/background writers before applying migrations so no
+new duplicate external identity can appear between the fail-safe preflight and
+the database constraint. Then create a client in Django admin under
+**RearVue MCP → MCP clients**. Choose scopes and domains. Leaving the token field
+blank generates a high-entropy token; copy the warning after saving because
+RearVue stores only its SHA-256 digest. Operators may instead supply a token
+matching `rvmcp_<8 lowercase hex characters>_<at least 32 URL-safe characters>`.
 
 For production, serve `rearvue.asgi:application` through Gunicorn with the
 external Uvicorn worker package included in RearVue's requirements:

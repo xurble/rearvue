@@ -21,6 +21,17 @@ server {
     ssl_certificate /etc/letsencrypt/live/archive.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/archive.example.com/privkey.pem;
 
+    location /static/ {
+        alias /srv/rearvue/static/;
+        access_log off;
+        expires 1h;
+    }
+
+    location /media/ {
+        alias /srv/rearvue/media/;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
     # Match only the two supported MCP mount spellings.
     location ~ ^/mcp/?$ {
         proxy_pass http://rearvue_asgi;
@@ -42,6 +53,7 @@ server {
         proxy_connect_timeout 10s;
         proxy_send_timeout 120s;
         proxy_read_timeout 120s;
+        # Keep this aligned with REARVUE_MCP_MAX_REQUEST_BODY_BYTES.
         client_max_body_size 2m;
 
         add_header Cache-Control "no-store" always;
@@ -58,7 +70,4 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # Keep the deployment's existing static/media aliases here. Django serves
-    # them itself only in DEBUG mode.
 }

@@ -25,21 +25,35 @@ views inside the ASGI application. MCP is mounted at `/mcp` and `/mcp/` only.
 - `../src/rearvue/settings_server.py.example` supplies production Django and MCP
   settings from environment variables without committing secrets.
 
-Install dependencies and prepare Django from the repository root:
+Install dependencies from the repository root:
 
 ```shell
 python -m venv .venv
 .venv/bin/pip install -r src/requirements.txt
+```
+
+Before running any Django command, copy `src/rearvue/settings_server.py.example`
+to the ignored `src/rearvue/settings_server.py`. Install a filled,
+service-account-readable copy of `deploy/rearvue.env.example` at
+`/etc/rearvue/rearvue.env`, create the configured data/log/static/media
+directories, and make the writable paths accessible to the service account.
+Load that same environment into the administrative shell, then prepare Django:
+
+```shell
+set -a
+. /etc/rearvue/rearvue.env
+set +a
 cd src
 ../.venv/bin/python manage.py migrate
 ../.venv/bin/python manage.py collectstatic --noinput
 ```
 
-Copy `src/rearvue/settings_server.py.example` to the ignored
-`src/rearvue/settings_server.py`, then provide its required environment
-variables. Adjust the example hostname, certificate paths, filesystem paths,
-service user/group, and static/media aliases before installing the Nginx and
-systemd files.
+Keep the installed environment file shell-compatible and readable only by the
+administrator and service group. Adjust the example hostname, certificate
+paths, filesystem paths, service user/group, and static/media aliases before
+installing the Nginx and systemd files. Keep Django's `CONN_MAX_AGE` at zero for
+ASGI; use a database-backend-supported pool if persistent connection reuse is
+required.
 
 From `src/`, the equivalent foreground command is:
 
@@ -47,6 +61,7 @@ From `src/`, the equivalent foreground command is:
 ../.venv/bin/gunicorn --config ../deploy/gunicorn.conf.py rearvue.asgi:application
 ```
 
-Enable MCP only after migrations and client provisioning are complete. Apply
-the Cloudflare controls last, then test both the ordinary site and an MCP
-initialize request through the public hostname.
+Stop web/import writers while applying migrations, then enable MCP only after
+migrations and client provisioning are complete. Apply the Cloudflare controls
+last, then test both the ordinary site and an MCP initialize request through the
+public hostname.

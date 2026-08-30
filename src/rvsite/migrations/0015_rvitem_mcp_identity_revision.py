@@ -24,9 +24,11 @@ def reject_duplicate_external_identities(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [("rvsite", "0014_rvservice_json_documents")]
     operations = [
+        # Run the fail-safe check before any DDL. MySQL cannot roll schema
+        # changes back when a later operation aborts the migration.
+        migrations.RunPython(reject_duplicate_external_identities, migrations.RunPython.noop),
         migrations.AddField(model_name="rvitem", name="revision", field=models.PositiveBigIntegerField(default=1)),
         migrations.AddField(model_name="rvitem", name="updated_at", field=models.DateTimeField(auto_now=True)),
-        migrations.RunPython(reject_duplicate_external_identities, migrations.RunPython.noop),
         migrations.AddConstraint(model_name="rvitem", constraint=models.UniqueConstraint(fields=("service", "item_id"), name="rvitem_service_item_id_unique")),
         migrations.AddIndex(model_name="rvitem", index=models.Index(fields=["domain", "datetime_created", "id"], name="rvitem_domain_created_idx")),
         migrations.AddIndex(model_name="rvitem", index=models.Index(fields=["domain", "service", "datetime_created"], name="rvitem_domain_service_idx")),
