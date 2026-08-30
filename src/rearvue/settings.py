@@ -31,6 +31,7 @@ LOG_LOCATION = settings_server.LOG_LOCATION
 DATA_STORE = settings_server.DATA_STORE
 
 DATABASES = settings_server.DATABASES
+CONN_HEALTH_CHECKS = getattr(settings_server, "CONN_HEALTH_CHECKS", False)
 
 # for the sqlite people :)
 DATABASES["default"]["NAME"] = DATABASES["default"]["NAME"].replace("__BASE_DIR__", BASE_DIR)
@@ -68,8 +69,25 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rvsite',
+    'rvmcp',
     'rvadmin',
     'feeds',
+)
+
+# The agent-facing MCP server is opt-in. Browser clients additionally require
+# their exact Origin value to appear in MCP_ALLOWED_ORIGINS.
+MCP_ENABLED = getattr(settings_server, "MCP_ENABLED", False)
+MCP_ALLOWED_ORIGINS = getattr(settings_server, "MCP_ALLOWED_ORIGINS", [])
+MCP_ALLOWED_HOSTS = getattr(settings_server, "MCP_ALLOWED_HOSTS", ALLOWED_HOSTS)
+MCP_MAX_PAGE_SIZE = getattr(settings_server, "MCP_MAX_PAGE_SIZE", 100)
+MCP_DEFAULT_PAGE_SIZE = getattr(settings_server, "MCP_DEFAULT_PAGE_SIZE", 50)
+MCP_MAX_BULK_ITEMS = getattr(settings_server, "MCP_MAX_BULK_ITEMS", 100)
+MCP_MAX_RAW_DATA_BYTES = getattr(settings_server, "MCP_MAX_RAW_DATA_BYTES", 256 * 1024)
+MCP_MAX_REQUEST_BODY_BYTES = getattr(
+    settings_server, "MCP_MAX_REQUEST_BODY_BYTES", 2 * 1024 * 1024
+)
+MCP_IDEMPOTENCY_TTL_SECONDS = getattr(
+    settings_server, "MCP_IDEMPOTENCY_TTL_SECONDS", 24 * 60 * 60
 )
 
 MIDDLEWARE = (
@@ -97,6 +115,7 @@ SECURE_PROXY_SSL_HEADER = getattr(settings_server, "SECURE_PROXY_SSL_HEADER", No
 ROOT_URLCONF = 'rearvue.urls'
 
 WSGI_APPLICATION = 'rearvue.wsgi.application'
+ASGI_APPLICATION = 'rearvue.asgi.application'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 

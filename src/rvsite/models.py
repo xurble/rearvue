@@ -88,15 +88,38 @@ class RVItem(models.Model):
     moderated = models.BooleanField(default=False)
     edited = models.BooleanField(default=False)
 
+    revision = models.PositiveBigIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         ordering = ("-id", )
+        constraints = [
+            models.UniqueConstraint(
+                fields=("service", "item_id"),
+                name="rvitem_service_item_id_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("domain", "datetime_created", "id"), name="rvitem_domain_created_idx"),
+            models.Index(fields=("domain", "service", "datetime_created"), name="rvitem_domain_service_idx"),
+            models.Index(fields=("domain", "public", "moderated"), name="rvitem_domain_visibility_idx"),
+        ]
 
     def __str__(self):
         return "%s - %s (%d)" % (self.display_title, self.service.name, self.mirror_state)
 
     def save(self, *args, **kwargs):
+        is_update = self.pk is not None
+        if is_update:
+            self.revision = models.F("revision") + 1
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"revision", "updated_at"}
 
         super().save(*args, **kwargs)
+
+        if is_update:
+            self.refresh_from_db(fields=("revision", "updated_at"))
 
         if not self.slug:
 
@@ -114,9 +137,8 @@ class RVItem(models.Model):
                 ct += 1
                 slug = f"{base_title}-{ct}"
 
+            type(self).objects.filter(pk=self.pk).update(slug=slug)
             self.slug = slug
-
-        super().save(*args, **kwargs)
 
     def get_slug(self):
         if not self.slug:

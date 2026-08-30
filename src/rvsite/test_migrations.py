@@ -119,3 +119,44 @@ class RVServiceJSONMigrationTests(TransactionTestCase):
         self.assertEqual(
             instagram.instagram_last_token_refresh_at, self.refreshed_at
         )
+
+
+class RVItemIdentityMigrationTests(TransactionTestCase):
+    migrate_from = ("rvsite", "0014_rvservice_json_documents")
+    migrate_to = ("rvsite", "0015_rvitem_mcp_identity_revision")
+
+    def setUp(self):
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_from])
+        apps = executor.loader.project_state([self.migrate_from]).apps
+        User = apps.get_model("auth", "User")
+        RVDomain = apps.get_model("rvsite", "RVDomain")
+        RVService = apps.get_model("rvsite", "RVService")
+        RVItem = apps.get_model("rvsite", "RVItem")
+        owner = User.objects.create(username="identity-migration-owner")
+        domain = RVDomain.objects.create(name="duplicates.example", owner=owner)
+        service = RVService.objects.create(name="Twitter", domain=domain, type="twitter")
+        values = {
+            "service": service,
+            "domain": domain,
+            "item_id": "duplicate",
+            "date_created": datetime.date(2025, 1, 1),
+            "datetime_created": timezone.now(),
+        }
+        RVItem.objects.create(**values)
+        RVItem.objects.create(**values)
+
+    def tearDown(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_from])
+        apps = executor.loader.project_state([self.migrate_from]).apps
+        apps.get_model("rvsite", "RVItem").objects.all().delete()
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def test_duplicate_external_identities_stop_the_migration(self):
+        executor = MigrationExecutor(connection)
+        with self.assertRaisesRegex(RuntimeError, "Resolve duplicate"):
+            executor.migrate([self.migrate_to])

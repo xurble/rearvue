@@ -1,4 +1,5 @@
 Django>=6.0.8,<6.1
+bleach
 certifi
 mysqlclient
 Pillow
@@ -8,6 +9,8 @@ django-feed-reader
 requests
 git+https://github.com/xurble/webpreview
 html5lib
+mcp>=1.27.2,<2
 colorlog
 proctitle
 gunicorn
+uvicorn-worker
