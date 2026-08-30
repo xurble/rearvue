@@ -204,10 +204,6 @@ class RVItem(models.Model):
         return self.rvlink_set.filter(is_context=False)
 
     @property
-    def orginal_links(self):
-        return self.original_links
-
-    @property
     def context_links(self):
         return self.rvlink_set.filter(is_context=True)
 

@@ -1,3 +1,4 @@
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -5,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 
 from rearvue.utils import admin_page, get_public_url, page
-from rvsite.models import RVDomain
+from rvsite.models import RVDomain, RVItem, RVLink, RVService
 
 
 class PublicUrlTests(SimpleTestCase):
@@ -48,6 +49,43 @@ class DomainOriginTests(SimpleTestCase):
         domain = RVDomain(name="example.com", alt_domain="http://archive.example.com/")
 
         self.assertEqual(domain.public_origin, "http://archive.example.com")
+
+
+class ItemLinkTests(TestCase):
+    def setUp(self):
+        owner = get_user_model().objects.create_user(username="owner")
+        domain = RVDomain.objects.create(name="example.com", owner=owner)
+        service = RVService.objects.create(
+            name="Example feed",
+            domain=domain,
+            type=RVService.Type.RSS,
+            last_checked=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+        self.item = RVItem(
+            service=service,
+            domain=domain,
+            item_id="example-item",
+            date_created=date(2026, 8, 30),
+            datetime_created=datetime(2026, 8, 30, 12, tzinfo=UTC),
+        )
+        self.item.save()
+
+    def test_original_links_excludes_context_links(self):
+        original_link = RVLink.objects.create(
+            item=self.item,
+            url="https://example.com/original",
+            is_context=False,
+        )
+        RVLink.objects.create(
+            item=self.item,
+            url="https://example.com/context",
+            is_context=True,
+        )
+
+        self.assertQuerySetEqual(self.item.original_links, [original_link])
+
+    def test_misspelled_original_links_alias_is_not_supported(self):
+        self.assertFalse(hasattr(self.item, "orginal_links"))
 
 
 class AccessDecoratorTests(TestCase):
