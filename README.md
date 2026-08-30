@@ -60,6 +60,10 @@ Optional overrides (read in `rearvue/settings.py` via `getattr` where noted):
 
 Install production dependencies from `src/requirements.txt`. Contributors can instead install `src/requirements-dev.txt`, which includes the runtime set plus debugging and security tools. Run migrations from `src/`, create a superuser, and collect static files as usual for Django.
 
+### Optional MCP server
+
+RearVue includes a disabled-by-default authenticated MCP server for normalized archive reads, search, and item writes. It requires the ASGI entry point plus explicit client scopes and domain grants. See [the MCP contract and deployment guide](docs/MCP.md) for security settings, schemas, limits, and examples.
+
 ---
 
 ## Sites and domains (`RVDomain`)
