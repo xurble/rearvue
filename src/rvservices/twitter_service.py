@@ -136,7 +136,13 @@ def find_twitter_links(specific_item=None):
             item.rvlink_set.filter(is_context=False).delete()
             for url in urls:
                 expanded_url = url["expanded_url"]
-                if expanded_url.startswith("https://twitter.com"):
+                parsed_url = urlparse(expanded_url)
+                host = parsed_url.hostname
+                if (
+                    parsed_url.scheme == "https"
+                    and host
+                    and (host == "twitter.com" or host.endswith(".twitter.com"))
+                ):
                     continue
                 linked, _message = utils.make_link(expanded_url, item)
                 if not linked:
