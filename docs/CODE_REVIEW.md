@@ -104,9 +104,9 @@ This report is organized as actionable todo lists: **P0** (address before trusti
   **Where:** `src/rvsite/templatetags/rv_filters.py`.  
   **Done:** Normalize to UTC (`astimezone` / `replace(tzinfo=UTC)`), then `timestamp()` + `formatdate(..., usegmt=True)` for RFC-822–style RSS `pubDate`.
 
-- [ ] **Typos and API consistency.**  
-  **Where:** `orginal_links` typo on `RVItem` (`src/rvsite/models.py`) kept as backward-compatible alias.  
-  **Work:** Prefer single spelling in new code; optionally deprecate alias in templates.
+- [x] **Typos and API consistency.**
+  **Where:** `orginal_links` typo on `RVItem` (`src/rvsite/models.py`) was kept as a backward-compatible alias.
+  **Done:** Removed the alias because all maintained callers use `original_links` and no external model API or custom-template compatibility surface is documented. Regression tests cover the supported filtering behavior and alias removal.
 
 - [x] **Settings/docstring drift.**  
   **Where:** `src/rearvue/settings.py` pointed at Django 1.6 docs.  

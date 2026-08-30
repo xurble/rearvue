@@ -171,3 +171,13 @@ Typical production use: run without skips on a schedule; ensure `DATA_STORE` (an
 \* Full history only if the feed exposes it (pagination).
 
 Other sources can be aggregated indirectly **via RSS** (e.g. GitHub, Mastodon) if they publish a feed URL.
+
+---
+
+## Model API compatibility
+
+`RVItem.original_links` is the supported property for retrieving an item's
+non-context links. The historical misspelling `RVItem.orginal_links` was removed
+without a deprecation period because repository code already used the supported
+spelling and RearVue has no documented external model API or custom-template
+compatibility surface.
