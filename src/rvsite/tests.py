@@ -88,6 +88,49 @@ class ItemLinkTests(TestCase):
         self.assertFalse(hasattr(self.item, "orginal_links"))
 
 
+class ItemPersistenceTests(TestCase):
+    def setUp(self):
+        owner = get_user_model().objects.create_user(username="item-owner")
+        self.domain = RVDomain.objects.create(name="items.example.com", owner=owner)
+        self.service = RVService.objects.create(
+            name="Example feed",
+            domain=self.domain,
+            type=RVService.Type.RSS,
+            last_checked=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    def create_item(self, **changes):
+        values = {
+            "service": self.service,
+            "domain": self.domain,
+            "item_id": "manager-created-item",
+            "date_created": date(2026, 8, 30),
+            "datetime_created": datetime(2026, 8, 30, 12, tzinfo=UTC),
+            "title": "Manager-created title",
+        }
+        values.update(changes)
+        return RVItem.objects.create(**values)
+
+    def test_manager_create_generates_slug_without_duplicate_insert(self):
+        item = self.create_item()
+
+        self.assertEqual(item.slug, "manager-created-title")
+        self.assertEqual(RVItem.objects.count(), 1)
+        self.assertEqual(RVItem.objects.get().slug, item.slug)
+
+    def test_update_preserves_slug_and_row(self):
+        item = self.create_item()
+        original_slug = item.slug
+
+        item.title = "Updated title"
+        item.save()
+
+        self.assertEqual(RVItem.objects.count(), 1)
+        item.refresh_from_db()
+        self.assertEqual(item.title, "Updated title")
+        self.assertEqual(item.slug, original_slug)
+
+
 class AccessDecoratorTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
