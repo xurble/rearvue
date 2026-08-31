@@ -173,7 +173,9 @@ def _discover_archive_urls(item, tweet):
         r"(?:%[0-9a-fA-F][0-9a-fA-F]))+"
     )
     for url in re.findall(pattern, item.caption):
-        if url.startswith("https://twitter.com"):
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        if hostname == "twitter.com" or hostname.endswith(".twitter.com"):
             continue
         final = utils.final_destination(url)
         short = url.split("://", 1)[1]
