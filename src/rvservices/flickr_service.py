@@ -199,7 +199,9 @@ def _mirror_flickr_item(client, item):
         original_extension = "mp4"
         media.media_type = 2
 
-    _write_media_content(media.make_original_path(original_extension), original.content)
+    original_path = media.make_original_path(original_extension)
+    media.save(update_fields=["media_type", "original_media"])
+    _write_media_content(original_path, original.content)
 
     primary_key = next(
         (key for key in ("url_l", "url_m", "url_o") if key in data),
@@ -211,9 +213,9 @@ def _mirror_flickr_item(client, item):
     primary = utils.get_public_url(primary_url, timeout=30)
     primary.raise_for_status()
     primary_extension = utils.get_extension(primary_url) or "jpg"
-    primary_path = _write_media_content(
-        media.make_primary_path(primary_extension), primary.content
-    )
+    local_primary_path = media.make_primary_path(primary_extension)
+    media.save(update_fields=["primary_media"])
+    primary_path = _write_media_content(local_primary_path, primary.content)
 
     with Image.open(primary_path) as image:
         ratio = float(image.size[0]) / float(image.size[1])
@@ -226,7 +228,9 @@ def _mirror_flickr_item(client, item):
             height,
         )
         image = image.resize((width, height), Image.BICUBIC)
-        image.save(utils.make_full_path(media.make_thumbnail_path(primary_extension)))
+        thumbnail_path = media.make_thumbnail_path(primary_extension)
+        media.save(update_fields=["thumbnail"])
+        image.save(utils.make_full_path(thumbnail_path))
     media.save()
 
 

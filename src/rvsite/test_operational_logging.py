@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import UTC, date, datetime
 from io import StringIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -222,12 +223,14 @@ class ServiceFailureLoggingTests(TestCase):
             self.assertLogs("rvservices.twitter_service", level="ERROR") as logs,
         ):
             result = mirror_twitter(specific_item=item)
+            remaining_files = [path for path in Path(data_store).rglob("*") if path.is_file()]
 
         item.refresh_from_db()
         self.assertEqual(result, OperationResult(failed=1))
         self.assertEqual(item.mirror_state, 0)
         self.assertIn("error_type=UnidentifiedImageError", " ".join(logs.output))
         self.assertFalse(item.rvmedia_set.exists())
+        self.assertEqual(remaining_files, [])
 
     @patch("rvservices.twitter_service.utils.get_public_url")
     def test_media_write_failure_preserves_twitter_state(self, get_public_url):

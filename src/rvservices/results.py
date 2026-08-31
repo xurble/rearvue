@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
 import flickrapi
 import requests
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import DatabaseError, transaction
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 OPERATIONAL_EXCEPTIONS = (
     DatabaseError,
@@ -45,10 +49,52 @@ def fail_media_replacement(item, previous_media_ids: list[int]) -> None:
     """Discard staged rows, preserve prior media, and make the item retryable."""
 
     staged_media = item.rvmedia_set.exclude(id__in=previous_media_ids)
+    staged_rows = list(staged_media)
     staged_media.delete()
+    _remove_media_files(item.id, staged_rows)
     if item.mirror_state != 0:
         item.mirror_state = 0
         item.save(update_fields=["mirror_state"])
+
+
+def _remove_media_files(item_id: int, media_rows: list[object]) -> None:
+    data_store = os.path.realpath(settings.DATA_STORE)
+    relative_paths = {
+        path
+        for media in media_rows
+        for path in (media.original_media, media.primary_media, media.thumbnail)
+        if path
+    }
+    for relative_path in relative_paths:
+        if os.path.isabs(relative_path):
+            logger.warning(
+                "Refusing staged media cleanup outside data store item_id=%s",
+                item_id,
+            )
+            continue
+        full_path = os.path.realpath(os.path.join(data_store, relative_path))
+        try:
+            within_data_store = os.path.commonpath((data_store, full_path)) == data_store
+        except ValueError:
+            within_data_store = False
+        if not within_data_store:
+            logger.warning(
+                "Refusing staged media cleanup outside data store item_id=%s",
+                item_id,
+            )
+            continue
+        try:
+            os.remove(full_path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            log_safe_exception(
+                logger,
+                "Staged media cleanup failed item_id=%s",
+                item_id,
+                exc=exc,
+                level=logging.WARNING,
+            )
 
 
 @dataclass(frozen=True)

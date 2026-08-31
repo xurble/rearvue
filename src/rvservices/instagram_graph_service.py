@@ -307,6 +307,7 @@ def mirror_instagram(specific_item=None):
                     ext = "jpg"
                     rvm.media_type = 1
                     output_path = rvm.make_original_path(ext)
+                    rvm.save(update_fields=["media_type", "original_media"])
                     target_path = utils.make_full_path(output_path)
                     utils.make_folder(target_path)
                     with open(target_path, "wb") as fh:
@@ -318,6 +319,7 @@ def mirror_instagram(specific_item=None):
                     h = max(1, int(300 / ratio))
                     img = img.resize((w, h), Image.BICUBIC)
                     output_path = rvm.make_thumbnail_path(ext)
+                    rvm.save(update_fields=["thumbnail"])
                     target_path = utils.make_full_path(output_path)
                     img.save(target_path)
 
@@ -325,6 +327,7 @@ def mirror_instagram(specific_item=None):
                     ext = "mp4"
                     rvm.media_type = 2
                     output_path = rvm.make_original_path(ext)
+                    rvm.save(update_fields=["media_type", "original_media"])
                     target_path = utils.make_full_path(output_path)
                     utils.make_folder(target_path)
                     with open(target_path, "wb") as fh:
@@ -334,6 +337,7 @@ def mirror_instagram(specific_item=None):
                     if thumbnail_url:
                         tdata = _download_binary(thumbnail_url)
                         output_path = rvm.make_thumbnail_path("jpg")
+                        rvm.save(update_fields=["thumbnail"])
                         target_path = utils.make_full_path(output_path)
                         utils.make_folder(target_path)
                         with open(target_path, "wb") as fh:

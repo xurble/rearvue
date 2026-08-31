@@ -236,10 +236,10 @@ def _mirror_twitter_media(item, media_data):
 
         extension = utils.get_extension(source_url) or "jpg"
         media.media_type = 1
-        target_path = _write_media_content(
-            media.make_original_path(extension), response.content
-        )
+        original_path = media.make_original_path(extension)
         media.primary_media = media.original_media
+        media.save(update_fields=["media_type", "original_media", "primary_media"])
+        target_path = _write_media_content(original_path, response.content)
 
         with Image.open(target_path) as image:
             ratio = float(image.size[0]) / float(image.size[1])
@@ -252,7 +252,9 @@ def _mirror_twitter_media(item, media_data):
                 height,
             )
             image = image.resize((width, height), Image.BICUBIC)
-            image.save(utils.make_full_path(media.make_thumbnail_path(extension)))
+            thumbnail_path = media.make_thumbnail_path(extension)
+            media.save(update_fields=["thumbnail"])
+            image.save(utils.make_full_path(thumbnail_path))
 
     elif media_type in ("animated_gif", "video"):
         variants = [
@@ -267,16 +269,18 @@ def _mirror_twitter_media(item, media_data):
         response.raise_for_status()
         extension = best["content_type"].split("/", 1)[1]
         media.media_type = 2
-        _write_media_content(media.make_original_path(extension), response.content)
+        original_path = media.make_original_path(extension)
         media.primary_media = media.original_media
+        media.save(update_fields=["media_type", "original_media", "primary_media"])
+        _write_media_content(original_path, response.content)
 
         thumbnail_url = media_data["media_url_https"]
         thumbnail = utils.get_public_url(thumbnail_url, timeout=30)
         thumbnail.raise_for_status()
         thumbnail_extension = utils.get_extension(thumbnail_url) or "jpg"
-        _write_media_content(
-            media.make_thumbnail_path(thumbnail_extension), thumbnail.content
-        )
+        thumbnail_path = media.make_thumbnail_path(thumbnail_extension)
+        media.save(update_fields=["thumbnail"])
+        _write_media_content(thumbnail_path, thumbnail.content)
     else:
         raise ValueError("Unsupported Twitter media type")
 
