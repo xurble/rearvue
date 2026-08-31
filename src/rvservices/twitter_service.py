@@ -168,10 +168,7 @@ def find_twitter_links(specific_item=None):
 
 def _discover_archive_urls(item, tweet):
     urls = []
-    pattern = (
-        r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|"
-        r"(?:%[0-9a-fA-F][0-9a-fA-F]))+"
-    )
+    pattern = r"https?://[^\s<>'\"]+"
     for url in re.findall(pattern, item.caption):
         parsed = urlparse(url)
         hostname = (parsed.hostname or "").lower()

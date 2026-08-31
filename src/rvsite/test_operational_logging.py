@@ -21,7 +21,12 @@ from rvservices.flickr_service import mirror_flickr, update_flickr
 from rvservices.instagram_graph_service import mirror_instagram
 from rvservices.results import OperationResult, log_safe_exception
 from rvservices.rss_service import fix_rss_item, mirror_rss
-from rvservices.twitter_service import fix_twitter_item, import_archive, mirror_twitter
+from rvservices.twitter_service import (
+    find_twitter_links,
+    fix_twitter_item,
+    import_archive,
+    mirror_twitter,
+)
 from rvsite.models import RVDomain, RVItem, RVMedia, RVService
 
 
@@ -98,6 +103,37 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertEqual(result, OperationResult(failed=1))
         self.assertIn("error_type=DatabaseError", " ".join(logs.output))
         self.assertFalse(RVItem.objects.filter(item_id="new-tweet").exists())
+
+    @patch(
+        "rvservices.twitter_service.utils.final_destination",
+        side_effect=lambda url: url,
+    )
+    @patch(
+        "rvservices.twitter_service.utils.make_link",
+        return_value=(True, ""),
+    )
+    def test_archive_url_discovery_stops_at_html_delimiters(
+        self, make_link, final_destination
+    ):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            caption="Visit https://example.com/path<br>after",
+            raw_data=json.dumps({"entities": {"urls": []}}),
+            mirror_state=1,
+        )
+
+        result = find_twitter_links(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1))
+        final_destination.assert_called_once_with("https://example.com/path")
+        make_link.assert_called_once_with("https://example.com/path", item)
+        self.assertEqual(
+            item.caption,
+            'Visit <a href="https://example.com/path">example.com/path</a><br>after',
+        )
+        self.assertEqual(item.mirror_state, 2)
 
     def test_malformed_twitter_payload_preserves_state_and_redacts_raw_data(self):
         service = self.create_service("twitter")
