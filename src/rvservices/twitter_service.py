@@ -1,263 +1,295 @@
-
-
-from rvsite.models import RVItem, RVMedia
-from PIL import Image
-
-import re
 import datetime
 import json
-import requests
+import logging
+import re
+from urllib.parse import urlparse
+
+from PIL import Image
+
 from rearvue import utils
-from webpreview import webpreview
+from rvservices.results import (
+    OPERATIONAL_EXCEPTIONS,
+    OperationResult,
+    complete_media_replacement,
+    fail_media_replacement,
+    log_safe_exception,
+    snapshot_media_ids,
+)
+from rvsite.models import RVItem, RVMedia
+
+logger = logging.getLogger(__name__)
 
 
 def fix_twitter_item(itemid):
-
-    itemid = int(itemid)
-
-    dbitem = RVItem.objects.get(id=itemid)
-
     try:
-        mirror_twitter(specific_item=dbitem)
-        find_twitter_links(specific_item=dbitem)
-        return (True, "Yo!")
-    except Exception as ex:
-        return (False, str(ex))
+        dbitem = RVItem.objects.get(id=int(itemid))
+    except (ValueError, RVItem.DoesNotExist):
+        return (False, "Twitter item not found")
+
+    result = mirror_twitter(specific_item=dbitem)
+    if not result.failed:
+        result += find_twitter_links(specific_item=dbitem)
+    if result.failed:
+        return (False, "Twitter item update failed; see operational logs")
+    return (True, "Item updated successfully")
 
 
 def import_archive(service, data):
-
+    result = OperationResult()
     for post in data:
-        tweet = post["tweet"]
+        try:
+            tweet = post["tweet"]
+            text = tweet["full_text"]
+            if text.startswith(("RT @", "@")):
+                continue
+            _import_tweet(service, tweet)
+            result += OperationResult(processed=1)
+        except OPERATIONAL_EXCEPTIONS as exc:
+            log_safe_exception(
+                logger,
+                "Twitter archive item import failed service_id=%s",
+                service.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result
 
-        if not tweet["full_text"].startswith("RT @") and not tweet["full_text"].startswith("@"):
-            try:
-                item = RVItem.objects.filter(service=service).filter(item_id=tweet["id"])[0]
-            except Exception:
-                print("NEW!")
-                item = RVItem(item_id=tweet["id"], service=service, domain=service.domain)
 
-            item.caption = tweet["full_text"]
+def _import_tweet(service, tweet):
+    created_at = datetime.datetime.strptime(
+        tweet["created_at"], "%a %b %d %H:%M:%S %z %Y"
+    )
+    item, _created = RVItem.objects.get_or_create(
+        service=service,
+        item_id=tweet["id"],
+        defaults={
+            "domain": service.domain,
+            "date_created": created_at.date(),
+            "datetime_created": created_at,
+        },
+    )
+    item.caption = tweet["full_text"]
 
-            for n in reversed(tweet["entities"]["user_mentions"]):
-                # go backwards to avoid trashing things by moving things around
-                item.caption = item.caption[:int(n["indices"][0])] + "<a title='{n}' href='https://twitter.com/{u}/'>@{u}</a>".format(u=n["screen_name"], n=n["name"]) + item.caption[int(n["indices"][1]):]
+    for mention in reversed(tweet["entities"]["user_mentions"]):
+        start, end = (int(value) for value in mention["indices"])
+        replacement = (
+            "<a title='{name}' href='https://twitter.com/{username}/'>@{username}</a>"
+        ).format(name=mention["name"], username=mention["screen_name"])
+        item.caption = item.caption[:start] + replacement + item.caption[end:]
 
-            for u in tweet["entities"]["urls"]:
-                if u["expanded_url"].startswith("https://twitter.com/"):
-                    # quote tweet
-                    item.caption = item.caption.replace(u["url"], "")
-                    item.caption += """
-                        <blockquote class="twitter-tweet">
-                            <a href="{u}"></a>
-                        </blockquote>
-                    """.format(u=u["expanded_url"])
-                else:
-                    item.caption = item.caption.replace(u["url"], "<a href='{xu}'>{su}</a>".format(xu=u["expanded_url"], su=u["display_url"]))
+    for url in tweet["entities"]["urls"]:
+        if url["expanded_url"].startswith("https://twitter.com/"):
+            item.caption = item.caption.replace(url["url"], "")
+            item.caption += (
+                '<blockquote class="twitter-tweet">'
+                f'<a href="{url["expanded_url"]}"></a>'
+                "</blockquote>"
+            )
+        else:
+            replacement = '<a href="{expanded}">{display}</a>'.format(
+                expanded=url["expanded_url"], display=url["display_url"]
+            )
+            item.caption = item.caption.replace(url["url"], replacement)
 
-            item.datetime_created = datetime.datetime.strptime(tweet["created_at"], '%a %b %d %H:%M:%S %z %Y')
-            item.date_created = datetime.date(year=item.datetime_created.year, month=item.datetime_created.month, day=item.datetime_created.day)
+    item.datetime_created = created_at
+    item.date_created = item.datetime_created.date()
+    item.remote_url = "https://twitter.com/{username}/status/{id}".format(
+        username=service.config.get("username", ""), id=tweet["id"]
+    )
 
-            item.remote_url = "https://twitter.com/{username}/status/{id}".format(username=service.config.get("username", ""), id=tweet['id'])
+    for media in tweet["entities"].get("media", []):
+        if "url" in media:
+            item.caption = item.caption.replace(media["url"], "")
 
-            if "media" in tweet["entities"]:
-                for m in tweet["entities"]["media"]:
-                    if "url" in m:
-                        item.caption = item.caption.replace(m["url"], "")
+    pattern = r"((http|https)://twitpic\.com/(\w+))"
+    for match in re.findall(pattern, item.caption):
+        parsed = urlparse(match[0])
+        host = parsed.hostname or ""
+        if host == "twitpic.com" or host.endswith(".twitpic.com"):
+            tweet["entities"].setdefault("media", []).append(
+                {"type": "photo", "media_url_https": match[0]}
+            )
+            item.caption = item.caption.replace(match[0], "")
 
-            if '//twitpic.com' in item.caption:
-                regex = r"((http|https)://twitpic\.com/(\w+))"
-                matches = re.findall(regex, item.caption)
-                for m in matches:
-                    if "media" not in tweet["entities"]:
-                        tweet["entities"]["media"] = []
-
-                    tweet["entities"]["media"].append(
-                        {
-                            "type": "photo",
-                            "media_url_https": m[0],
-                        }
-                    )
-                    item.caption = item.caption.replace(m[0], "")
-
-            item.caption = item.caption.replace("\n", "<br>")
-
-            item.raw_data = json.dumps(tweet)
-
-            if "media" in tweet["entities"] and item.mirror_state == 0:
-                item.save()
-                # mirror_twitter(specific_item=item)
-            else:
-                item.mirror_state = 1
-                item.save()
+    item.caption = item.caption.replace("\n", "<br>")
+    item.raw_data = json.dumps(tweet)
+    if "media" not in tweet["entities"]:
+        item.mirror_state = 1
+    item.save()
 
 
 def find_twitter_links(specific_item=None):
-
     if specific_item is not None:
         queue = [specific_item]
     else:
-        queue = RVItem.objects.filter(mirror_state=1).filter(service__type="twitter").filter(service__live=True)[:100]
+        queue = RVItem.objects.filter(
+            mirror_state=1,
+            service__type="twitter",
+            service__live=True,
+        )[:100]
 
+    result = OperationResult()
     for item in queue:
-
-        print("Twitter Linking {}".format(item.id))
-
         try:
             tweet = json.loads(item.raw_data)
+            urls = tweet["entities"].get("urls", [])
+            if not urls:
+                urls = _discover_archive_urls(item, tweet)
 
-            if "urls" in tweet["entities"]:
-
-                if len(tweet["entities"]["urls"]) == 0:
-                    urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', item.caption)
-                    for u in urls:
-                        if not u.startswith("https://twitter.com"):  # things we linked ourselves
-                            final = utils.final_destination(u)
-                            short = u.split("://")[1]
-                            tweet["entities"]["urls"].append({"expanded_url": final})
-                            if '>{}</a>'.format(short) not in item.caption:
-                                item.caption = item.caption.replace(u, '<a href="{}">{}</a>'.format(final, short))
-
-                try:
-                    item.rvlink_set.filter(is_context=False).delete()
-                    for u in tweet["entities"]["urls"]:
-
-                        if not u["expanded_url"].startswith("https://twitter.com"):
-                            utils.make_link(u["expanded_url"], item)
-                except Exception as ex:
-                    print(ex)
-                    pass
+            item.rvlink_set.filter(is_context=False).delete()
+            for url in urls:
+                expanded_url = url["expanded_url"]
+                parsed_url = urlparse(expanded_url)
+                host = parsed_url.hostname
+                if (
+                    parsed_url.scheme == "https"
+                    and host
+                    and (host == "twitter.com" or host.endswith(".twitter.com"))
+                ):
+                    continue
+                linked, _message = utils.make_link(expanded_url, item)
+                if not linked:
+                    raise RuntimeError("Twitter link preview failed")
 
             item.mirror_state = 2
-            item.save()
-        except Exception as ex:
-            print(ex)
-            item.mirror_state = 2
-            item.save()
+            item.save(update_fields=["caption", "mirror_state"])
+            result += OperationResult(processed=1)
+        except OPERATIONAL_EXCEPTIONS as exc:
+            log_safe_exception(
+                logger,
+                "Twitter link discovery failed service_id=%s item_id=%s",
+                item.service_id,
+                item.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result
 
 
-
+def _discover_archive_urls(item, tweet):
+    urls = []
+    pattern = r"https?://[^\s<>'\"]+"
+    for url in re.findall(pattern, item.caption):
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        if hostname == "twitter.com" or hostname.endswith(".twitter.com"):
+            continue
+        final = utils.final_destination(url)
+        short = url.split("://", 1)[1]
+        urls.append({"expanded_url": final})
+        if f">{short}</a>" not in item.caption:
+            item.caption = item.caption.replace(url, f'<a href="{final}">{short}</a>')
+    tweet["entities"]["urls"] = urls
+    return urls
 
 
 def mirror_twitter(specific_item=None):
-
     if specific_item is not None:
         queue = [specific_item]
     else:
-        queue = RVItem.objects.filter(mirror_state=0).filter(service__type="twitter").filter(service__live=True)[:100]
+        queue = RVItem.objects.filter(
+            mirror_state=0,
+            service__type="twitter",
+            service__live=True,
+        )[:100]
 
+    result = OperationResult()
     for item in queue:
-
+        previous_media_ids = snapshot_media_ids(item)
         try:
             tweet = json.loads(item.raw_data)
+            entities = tweet.get("extended_entities") or tweet["entities"]
+            media_items = entities["media"]
+            for media_data in media_items:
+                _mirror_twitter_media(item, media_data)
 
-            for m in item.rvmedia_set.all():
-                m.delete()
+            complete_media_replacement(item, previous_media_ids)
+            result += OperationResult(processed=1)
+        except OPERATIONAL_EXCEPTIONS as exc:
+            fail_media_replacement(item, previous_media_ids)
+            log_safe_exception(
+                logger,
+                "Twitter mirror failed service_id=%s item_id=%s",
+                item.service_id,
+                item.id,
+                exc=exc,
+            )
+            result += OperationResult(failed=1)
+    return result
 
-            if "extended_entities" in tweet:
-                media_items = tweet["extended_entities"]["media"]
-            else:
-                media_items = tweet["entities"]["media"]
 
-            for m in media_items:
+def _mirror_twitter_media(item, media_data):
+    media = RVMedia.objects.create(item=item)
+    media_type = media_data["type"]
 
-                rvm = RVMedia()
-                rvm.item = item
-                rvm.save()
+    if media_type == "photo":
+        source_url = media_data["media_url_https"]
+        response = utils.get_public_url(source_url, timeout=30)
+        response.raise_for_status()
 
-                if m["type"] == "photo":
-                    ret = requests.get(m["media_url_https"], timeout=30, verify=True)
-                    rvm.media_type = 1
+        if "twitpic" in source_url:
+            page = response.content.decode("utf-8")
+            marker = '<meta name="twitter:image" value="'
+            source_url = page.split(marker, 1)[1].split('"', 1)[0]
+            response = utils.get_public_url(source_url, timeout=30)
+            response.raise_for_status()
 
-                    if "twitpic" in m["media_url_https"]:
-                        page = ret.content.decode("utf-8")
-                        page = page.split('<meta name="twitter:image" value="')[1]
-                        m["media_url_https"] = page.split('"')[0]
-                        ret = requests.get(m["media_url_https"], timeout=30, verify=True)
-                        m["media_url_https"] = m["media_url_https"].split("?")[0]
+        extension = utils.get_extension(source_url) or "jpg"
+        media.media_type = 1
+        original_path = media.make_original_path(extension)
+        media.primary_media = media.original_media
+        media.save(update_fields=["media_type", "original_media", "primary_media"])
+        target_path = _write_media_content(original_path, response.content)
 
-                    ext = m["media_url_https"].split("/")[-1]
+        with Image.open(target_path) as image:
+            ratio = float(image.size[0]) / float(image.size[1])
+            width = 300
+            height = max(1, int(300 / ratio))
+            logger.debug(
+                "Resizing Twitter thumbnail item_id=%s width=%s height=%s",
+                item.id,
+                width,
+                height,
+            )
+            image = image.resize((width, height), Image.BICUBIC)
+            thumbnail_path = media.make_thumbnail_path(extension)
+            media.save(update_fields=["thumbnail"])
+            image.save(utils.make_full_path(thumbnail_path))
 
-                    if ret.ok:
-                        output_path = rvm.make_original_path(ext)
+    elif media_type in ("animated_gif", "video"):
+        variants = [
+            variant
+            for variant in media_data["video_info"]["variants"]
+            if variant["content_type"].startswith("video/")
+        ]
+        if not variants:
+            raise ValueError("Twitter video has no downloadable variant")
+        best = max(variants, key=lambda variant: int(variant.get("bitrate", 0)))
+        response = utils.get_public_url(best["url"], timeout=30)
+        response.raise_for_status()
+        extension = best["content_type"].split("/", 1)[1]
+        media.media_type = 2
+        original_path = media.make_original_path(extension)
+        media.primary_media = media.original_media
+        media.save(update_fields=["media_type", "original_media", "primary_media"])
+        _write_media_content(original_path, response.content)
 
-                        target_path = utils.make_full_path(output_path)
+        thumbnail_url = media_data["media_url_https"]
+        thumbnail = utils.get_public_url(thumbnail_url, timeout=30)
+        thumbnail.raise_for_status()
+        thumbnail_extension = utils.get_extension(thumbnail_url) or "jpg"
+        thumbnail_path = media.make_thumbnail_path(thumbnail_extension)
+        media.save(update_fields=["thumbnail"])
+        _write_media_content(thumbnail_path, thumbnail.content)
+    else:
+        raise ValueError("Unsupported Twitter media type")
 
-                        utils.make_folder(target_path)
+    media.save()
 
-                        fh = open(target_path,"wb")
-                        fh.write(ret.content)
-                        fh.close()
 
-                        #for twitter original and priamary are the same
-                        rvm.primary_media = rvm.original_media
-
-                        img = Image.open(target_path)
-
-                        ratio = float(img.size[0]) / float(img.size[1])
-
-                        w = 300
-                        h = int(300 / ratio)
-
-                        print("resizing thumbnail" , w, h)
-
-                        img = img.resize((w,h),Image.BICUBIC)
-
-                        output_path = rvm.make_thumbnail_path(ext)
-
-                        target_path = utils.make_full_path(output_path)
-
-                        img.save(target_path)
-
-                elif m["type"] in ["animated_gif", "video"]:
-
-                    best = None
-                    br = 0
-                    for v in m["video_info"]["variants"]:
-                        if v["content_type"].startswith("video/"):
-                            if best is None:
-                                best = v
-                            if "bitrate" in v and int(v["bitrate"]) > br:
-                                br = int(v["bitrate"])
-                                best = v
-
-                    if best is not None:
-                        ret = requests.get(best["url"], timeout=30, verify=True)
-                        rvm.media_type = 2
-                        ext = best["content_type"].split("/")[-1]
-
-                        if ret.ok:
-                            output_path = rvm.make_original_path(ext)
-
-                            target_path = utils.make_full_path(output_path)
-
-                            utils.make_folder(target_path)
-
-                            fh = open(target_path, "wb")
-                            fh.write(ret.content)
-                            fh.close()
-
-                            # for twitter original and priamary are the same
-                            rvm.primary_media = rvm.original_media
-
-                            ret = requests.get(m["media_url_https"], timeout=30, verify=True)
-
-                            ext = m["media_url_https"].split(".")[-1]
-
-                            if ret.ok:
-                                output_path = rvm.make_thumbnail_path(ext)
-
-                                target_path = utils.make_full_path(output_path)
-
-                                utils.make_folder(target_path)
-
-                                fh = open(target_path, "wb")
-                                fh.write(ret.content)
-                                fh.close()
-
-                rvm.save()
-
-            item.mirror_state = 1
-            item.save()
-        except Exception as ex:
-            print(ex)
+def _write_media_content(local_path, content):
+    target_path = utils.make_full_path(local_path)
+    utils.make_folder(target_path)
+    with open(target_path, "wb") as output:
+        output.write(content)
+    return target_path
