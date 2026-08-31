@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import UTC, date, datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -396,6 +396,48 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertFalse(success)
         self.assertEqual(item.mirror_state, 0)
         self.assertQuerySetEqual(item.rvmedia_set.all(), [existing])
+
+    @patch("rvservices.rss_service.utils.get_public_url")
+    def test_rss_image_mirror_resizes_while_source_is_open(self, get_public_url):
+        image_bytes = BytesIO()
+        Image.new("RGB", (4, 2)).save(image_bytes, format="JPEG")
+        get_public_url.return_value = SimpleNamespace(
+            content=image_bytes.getvalue(),
+            raise_for_status=lambda: None,
+        )
+        service = self.create_service("rss")
+        source = Source.objects.create(feed_url="https://example.com/feed.xml")
+        post = Post.objects.create(
+            source=source,
+            title="RSS image item",
+            body="",
+            found=timezone.now(),
+            created=timezone.now(),
+            guid="rss-image-item",
+            index=1,
+        )
+        Enclosure.objects.create(
+            post=post,
+            href="https://cdn.example.com/photo.jpg",
+            type="image/jpeg",
+        )
+        item = self.create_item(
+            service,
+            raw_data=str(post.id),
+            mirror_state=0,
+        )
+
+        with TemporaryDirectory() as data_store, override_settings(
+            DATA_STORE=data_store
+        ):
+            result = mirror_rss(specific_item=item)
+            item.refresh_from_db()
+            media = item.rvmedia_set.get()
+            thumbnail_exists = Path(data_store, media.thumbnail).is_file()
+
+        self.assertEqual(result, OperationResult(processed=1))
+        self.assertEqual(item.mirror_state, 1)
+        self.assertTrue(thumbnail_exists)
 
     def test_missing_rss_post_does_not_starve_later_items(self):
         service = self.create_service("rss")

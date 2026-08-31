@@ -166,16 +166,16 @@ def _mirror_rss_enclosure(item, enclosure):
             ratio = float(image.size[0]) / float(image.size[1])
             width = 300
             height = max(1, int(300 / ratio))
-        logger.debug(
+            logger.debug(
                 "Resizing RSS thumbnail item_id=%s width=%s height=%s",
                 item.id,
                 width,
                 height,
-        )
-        image = image.resize((width, height), Image.BICUBIC)
-        thumbnail_path = media.make_thumbnail_path(extension)
-        media.save(update_fields=["media_type", "primary_media", "thumbnail"])
-        image.save(utils.make_full_path(thumbnail_path))
+            )
+            image = image.resize((width, height), Image.BICUBIC)
+            thumbnail_path = media.make_thumbnail_path(extension)
+            media.save(update_fields=["media_type", "primary_media", "thumbnail"])
+            image.save(utils.make_full_path(thumbnail_path))
     else:
         media.media_type = 3 if enclosure.medium == "image" else 2
 
