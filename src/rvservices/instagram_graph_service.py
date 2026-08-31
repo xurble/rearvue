@@ -25,7 +25,10 @@ from rearvue import utils
 from rvservices.results import (
     OPERATIONAL_EXCEPTIONS,
     OperationResult,
+    complete_media_replacement,
+    fail_media_replacement,
     log_safe_exception,
+    snapshot_media_ids,
 )
 from rvsite.models import RVItem, RVMedia, RVService
 
@@ -274,6 +277,7 @@ def mirror_instagram(specific_item=None):
 
     result = OperationResult()
     for item in queue:
+        previous_media_ids = snapshot_media_ids(item)
         try:
             logger.info(
                 "Mirroring Instagram service_id=%s item_id=%s",
@@ -281,9 +285,6 @@ def mirror_instagram(specific_item=None):
                 item.id,
             )
             data = json.loads(item.raw_data or "{}")
-
-            for m in item.rvmedia_set.all():
-                m.delete()
 
             media_items = _media_items_from_raw(data)
             if not media_items:
@@ -345,12 +346,11 @@ def mirror_instagram(specific_item=None):
 
             if not item.rvmedia_set.exists():
                 raise ValueError("Instagram item produced no mirrored media")
-            item.mirror_state = 1
-            item.save(update_fields=["mirror_state"])
+            complete_media_replacement(item, previous_media_ids)
             result += OperationResult(processed=1)
 
         except OPERATIONAL_EXCEPTIONS as exc:
-            item.rvmedia_set.all().delete()
+            fail_media_replacement(item, previous_media_ids)
             log_safe_exception(
                 logger,
                 "Instagram mirror failed service_id=%s item_id=%s",

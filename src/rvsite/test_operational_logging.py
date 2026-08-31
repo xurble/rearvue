@@ -12,12 +12,17 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import DatabaseError
 from django.test import TestCase, override_settings
+from django.utils import timezone
+from feeds.models import Enclosure, Post, Source
+from flickrapi.exceptions import FlickrError
+from PIL import Image
 
-from rvservices.flickr_service import update_flickr
+from rvservices.flickr_service import mirror_flickr, update_flickr
 from rvservices.instagram_graph_service import mirror_instagram
 from rvservices.results import OperationResult, log_safe_exception
-from rvservices.twitter_service import import_archive, mirror_twitter
-from rvsite.models import RVDomain, RVItem, RVService
+from rvservices.rss_service import fix_rss_item, mirror_rss
+from rvservices.twitter_service import fix_twitter_item, import_archive, mirror_twitter
+from rvsite.models import RVDomain, RVItem, RVMedia, RVService
 
 
 class ServiceFailureLoggingTests(TestCase):
@@ -225,6 +230,207 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertIn("error_type=OSError errno=28", " ".join(logs.output))
         self.assertFalse(item.rvmedia_set.exists())
 
+    @patch(
+        "rvservices.twitter_service.utils.get_public_url",
+        side_effect=requests.Timeout("provider timeout"),
+    )
+    def test_failed_twitter_repair_preserves_existing_media_and_retries(
+        self, _get_public_url
+    ):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            raw_data=json.dumps(
+                {
+                    "entities": {
+                        "media": [
+                            {
+                                "type": "photo",
+                                "media_url_https": "https://cdn.example.com/photo.jpg",
+                            }
+                        ]
+                    }
+                }
+            ),
+            mirror_state=2,
+        )
+        existing = RVMedia.objects.create(
+            item=item,
+            media_type=1,
+            original_media="media/existing-original.jpg",
+            primary_media="media/existing-primary.jpg",
+            thumbnail="media/existing-thumbnail.jpg",
+        )
+
+        success, _message = fix_twitter_item(item.id)
+
+        item.refresh_from_db()
+        self.assertFalse(success)
+        self.assertEqual(item.mirror_state, 0)
+        self.assertQuerySetEqual(item.rvmedia_set.all(), [existing])
+
+    def test_successful_twitter_repair_atomically_replaces_existing_media(self):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            raw_data=json.dumps(
+                {
+                    "entities": {
+                        "media": [
+                            {
+                                "type": "photo",
+                                "media_url_https": "https://cdn.example.com/photo.jpg",
+                            }
+                        ]
+                    }
+                }
+            ),
+            mirror_state=2,
+        )
+        existing = RVMedia.objects.create(
+            item=item,
+            media_type=1,
+            original_media="media/existing-original.jpg",
+        )
+
+        def create_replacement(target_item, _media_data):
+            RVMedia.objects.create(
+                item=target_item,
+                media_type=1,
+                original_media="media/replacement-original.jpg",
+            )
+
+        with patch(
+            "rvservices.twitter_service._mirror_twitter_media",
+            side_effect=create_replacement,
+        ):
+            result = mirror_twitter(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1))
+        self.assertEqual(item.mirror_state, 1)
+        self.assertFalse(RVMedia.objects.filter(id=existing.id).exists())
+        self.assertEqual(
+            item.rvmedia_set.get().original_media,
+            "media/replacement-original.jpg",
+        )
+
+    @patch(
+        "rvservices.rss_service.utils.get_public_url",
+        side_effect=requests.Timeout("provider timeout"),
+    )
+    def test_failed_rss_repair_preserves_existing_media_and_retries(
+        self, _get_public_url
+    ):
+        service = self.create_service("rss")
+        source = Source.objects.create(feed_url="https://example.com/feed.xml")
+        post = Post.objects.create(
+            source=source,
+            title="RSS item",
+            body="",
+            found=timezone.now(),
+            created=timezone.now(),
+            guid="rss-repair-item",
+            index=1,
+        )
+        Enclosure.objects.create(
+            post=post,
+            href="https://cdn.example.com/photo.jpg",
+            type="image/jpeg",
+        )
+        item = self.create_item(
+            service,
+            raw_data=str(post.id),
+            mirror_state=2,
+        )
+        existing = RVMedia.objects.create(
+            item=item,
+            media_type=1,
+            original_media="media/existing-original.jpg",
+            primary_media="media/existing-primary.jpg",
+            thumbnail="media/existing-thumbnail.jpg",
+        )
+
+        success, _message = fix_rss_item(item.id)
+
+        item.refresh_from_db()
+        self.assertFalse(success)
+        self.assertEqual(item.mirror_state, 0)
+        self.assertQuerySetEqual(item.rvmedia_set.all(), [existing])
+
+    def test_missing_rss_post_does_not_starve_later_items(self):
+        service = self.create_service("rss")
+        source = Source.objects.create(feed_url="https://example.com/feed.xml")
+        post = Post.objects.create(
+            source=source,
+            title="RSS item",
+            body="",
+            found=timezone.now(),
+            created=timezone.now(),
+            guid="valid-rss-item",
+            index=1,
+        )
+        valid_item = self.create_item(
+            service,
+            item_id="valid-rss-item",
+            raw_data=str(post.id),
+            mirror_state=0,
+        )
+        stale_item = self.create_item(
+            service,
+            item_id="stale-rss-item",
+            raw_data=str(post.id + 10_000),
+            mirror_state=0,
+        )
+
+        result = mirror_rss()
+
+        valid_item.refresh_from_db()
+        stale_item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1, failed=1))
+        self.assertEqual(valid_item.mirror_state, 1)
+        self.assertEqual(stale_item.mirror_state, 0)
+
+    @patch(
+        "rvservices.twitter_service.Image.open",
+        side_effect=Image.DecompressionBombError("oversized image"),
+    )
+    @patch("rvservices.twitter_service.utils.get_public_url")
+    def test_decompression_bomb_is_an_operational_item_failure(
+        self, get_public_url, _image_open
+    ):
+        get_public_url.return_value = SimpleNamespace(
+            content=b"image bytes",
+            raise_for_status=lambda: None,
+        )
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            raw_data=json.dumps(
+                {
+                    "entities": {
+                        "media": [
+                            {
+                                "type": "photo",
+                                "media_url_https": "https://cdn.example.com/photo.jpg",
+                            }
+                        ]
+                    }
+                }
+            ),
+            mirror_state=0,
+        )
+
+        with (
+            TemporaryDirectory() as data_store,
+            override_settings(DATA_STORE=data_store),
+        ):
+            result = mirror_twitter(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(failed=1))
+        self.assertEqual(item.mirror_state, 0)
+
     @patch("rvservices.flickr_service._flickr_client")
     def test_flickr_provider_error_does_not_advance_checkpoint(self, client_factory):
         service = self.create_service(
@@ -249,6 +455,33 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertEqual(service.last_checked, original_checked)
         self.assertIn("error_type=Timeout", output)
         self.assertNotIn("top-secret", output)
+
+    @patch("rvservices.flickr_service._flickr_client")
+    def test_flickr_media_provider_error_remains_item_scoped(self, client_factory):
+        service = self.create_service(
+            "flickr",
+            config={"user_id": "provider-user"},
+        )
+        item = self.create_item(
+            service,
+            raw_data=json.dumps(
+                {
+                    "media": "video",
+                    "url_m": "https://cdn.example.com/preview.jpg",
+                }
+            ),
+            mirror_state=0,
+        )
+        client = Mock()
+        client.photos.getSizes.side_effect = FlickrError("provider error")
+        client_factory.return_value = client
+
+        result = mirror_flickr()
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(failed=1))
+        self.assertEqual(item.mirror_state, 0)
+        self.assertFalse(item.rvmedia_set.exists())
 
     def test_safe_exception_logging_omits_all_sensitive_exception_values(self):
         exception = ValueError(

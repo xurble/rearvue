@@ -3,11 +3,19 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import flickrapi
 import requests
-from django.db import DatabaseError
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import DatabaseError, transaction
+from PIL import Image
 
 OPERATIONAL_EXCEPTIONS = (
     DatabaseError,
+    ObjectDoesNotExist,
+    flickrapi.exceptions.FlickrError,
+    flickrapi.exceptions.CancelUpload,
+    flickrapi.exceptions.LockingError,
+    Image.DecompressionBombError,
     requests.RequestException,
     OSError,
     LookupError,
@@ -15,6 +23,32 @@ OPERATIONAL_EXCEPTIONS = (
     ValueError,
     RuntimeError,
 )
+
+
+def snapshot_media_ids(item) -> list[int]:
+    """Record media rows that must survive until replacement fully succeeds."""
+
+    return list(item.rvmedia_set.values_list("id", flat=True))
+
+
+def complete_media_replacement(item, previous_media_ids: list[int]) -> None:
+    """Atomically publish staged media and advance the item's mirror state."""
+
+    with transaction.atomic():
+        if previous_media_ids:
+            item.rvmedia_set.filter(id__in=previous_media_ids).delete()
+        item.mirror_state = 1
+        item.save(update_fields=["mirror_state"])
+
+
+def fail_media_replacement(item, previous_media_ids: list[int]) -> None:
+    """Discard staged rows, preserve prior media, and make the item retryable."""
+
+    staged_media = item.rvmedia_set.exclude(id__in=previous_media_ids)
+    staged_media.delete()
+    if item.mirror_state != 0:
+        item.mirror_state = 0
+        item.save(update_fields=["mirror_state"])
 
 
 @dataclass(frozen=True)

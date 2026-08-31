@@ -12,7 +12,10 @@ from rearvue import utils
 from rvservices.results import (
     OPERATIONAL_EXCEPTIONS,
     OperationResult,
+    complete_media_replacement,
+    fail_media_replacement,
     log_safe_exception,
+    snapshot_media_ids,
 )
 from rvsite.models import RVItem, RVLink, RVMedia, RVService
 
@@ -119,20 +122,19 @@ def mirror_rss(specific_item=None):
 
     result = OperationResult()
     for item in queue:
+        previous_media_ids = snapshot_media_ids(item)
         try:
             post = Post.objects.get(id=int(item.raw_data))
-            item.rvmedia_set.all().delete()
 
             for enclosure in post.enclosures.all():
                 if not enclosure.type.startswith(("image/", "video/")):
                     continue
                 _mirror_rss_enclosure(item, enclosure)
 
-            item.mirror_state = 1
-            item.save(update_fields=["mirror_state"])
+            complete_media_replacement(item, previous_media_ids)
             result += OperationResult(processed=1)
         except OPERATIONAL_EXCEPTIONS as exc:
-            item.rvmedia_set.all().delete()
+            fail_media_replacement(item, previous_media_ids)
             log_safe_exception(
                 logger,
                 "RSS mirror failed service_id=%s item_id=%s",

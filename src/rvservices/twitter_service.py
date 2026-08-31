@@ -10,7 +10,10 @@ from rearvue import utils
 from rvservices.results import (
     OPERATIONAL_EXCEPTIONS,
     OperationResult,
+    complete_media_replacement,
+    fail_media_replacement,
     log_safe_exception,
+    snapshot_media_ids,
 )
 from rvsite.models import RVItem, RVMedia
 
@@ -193,19 +196,18 @@ def mirror_twitter(specific_item=None):
 
     result = OperationResult()
     for item in queue:
+        previous_media_ids = snapshot_media_ids(item)
         try:
             tweet = json.loads(item.raw_data)
-            item.rvmedia_set.all().delete()
             entities = tweet.get("extended_entities") or tweet["entities"]
             media_items = entities["media"]
             for media_data in media_items:
                 _mirror_twitter_media(item, media_data)
 
-            item.mirror_state = 1
-            item.save(update_fields=["mirror_state"])
+            complete_media_replacement(item, previous_media_ids)
             result += OperationResult(processed=1)
         except OPERATIONAL_EXCEPTIONS as exc:
-            item.rvmedia_set.all().delete()
+            fail_media_replacement(item, previous_media_ids)
             log_safe_exception(
                 logger,
                 "Twitter mirror failed service_id=%s item_id=%s",

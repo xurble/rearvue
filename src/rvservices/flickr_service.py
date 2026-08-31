@@ -11,7 +11,10 @@ from rearvue import utils
 from rvservices.results import (
     OPERATIONAL_EXCEPTIONS,
     OperationResult,
+    complete_media_replacement,
+    fail_media_replacement,
     log_safe_exception,
+    snapshot_media_ids,
 )
 from rvsite.models import RVItem, RVMedia, RVService
 
@@ -155,13 +158,13 @@ def mirror_flickr():
 
         queue = RVItem.objects.filter(mirror_state=0, service=service)[:100]
         for item in queue:
+            previous_media_ids = snapshot_media_ids(item)
             try:
                 _mirror_flickr_item(client, item)
-                item.mirror_state = 1
-                item.save(update_fields=["mirror_state"])
+                complete_media_replacement(item, previous_media_ids)
                 result += OperationResult(processed=1)
             except OPERATIONAL_EXCEPTIONS as exc:
-                item.rvmedia_set.all().delete()
+                fail_media_replacement(item, previous_media_ids)
                 log_safe_exception(
                     logger,
                     "Flickr mirror failed service_id=%s item_id=%s",
@@ -175,7 +178,6 @@ def mirror_flickr():
 
 def _mirror_flickr_item(client, item):
     data = json.loads(item.raw_data)
-    item.rvmedia_set.all().delete()
     media = RVMedia.objects.create(item=item)
 
     if data["media"] == "photo":
