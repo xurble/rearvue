@@ -86,26 +86,31 @@ def validate_public_http_url(url):
     return parsed.geturl()
 
 
-def get_public_url(url, *, timeout=30, headers=None):
+def get_public_url(url, *, timeout=30, headers=None, stream=False):
     """Fetch a public HTTP(S) URL while validating every redirect target."""
     current = validate_public_http_url(url)
     if not current:
         raise ValueError("URL scheme or host is not allowed")
 
     for _ in range(MAX_REDIRECT_HOPS):
-        response = requests.get(
-            current,
-            timeout=timeout,
-            verify=True,
-            allow_redirects=False,
-            headers=headers,
-        )
+        request_options = {
+            "timeout": timeout,
+            "verify": True,
+            "allow_redirects": False,
+            "headers": headers,
+        }
+        if stream:
+            request_options["stream"] = True
+        response = requests.get(current, **request_options)  # nosec B113 - timeout is always in request_options.
         if response.status_code not in REDIRECT_STATUSES:
             return response
 
         location = response.headers.get("Location")
         if not location:
             return response
+        close_response = getattr(response, "close", None)
+        if close_response is not None:
+            close_response()
         current = validate_public_http_url(urljoin(current, location))
         if not current:
             raise ValueError("Redirect led to a URL that is not allowed")

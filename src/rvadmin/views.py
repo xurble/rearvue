@@ -8,7 +8,6 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from flickrapi import FlickrAPI
 
-import json
 import secrets
 from datetime import timedelta
 
@@ -26,6 +25,8 @@ import rvservices.instagram_oauth
 import rvservices.flickr_service
 import rvservices.rss_service
 import rvservices.twitter_service
+from rvmcp.archive_import import import_twitter_archive
+from rvmcp.services import MCPServiceError
 
 
 def _safe_admin_redirect(request, fallback=None):
@@ -306,10 +307,16 @@ def twitter_connect(request, iid):
     if request.method == "POST":
         if request.POST["action"] == "archive":
             js = request.FILES["archive"]
-            data = js.read().decode('utf-8')
-
-            data = data[len("window.YTD.tweets.part0 = "):]
-            rvservices.twitter_service.import_archive(svc, json.loads(data))
+            try:
+                result = import_twitter_archive(svc, js.read())
+                messages.success(
+                    request,
+                    "Twitter archive processed: "
+                    f"{result['processed_count']} imported, "
+                    f"{result['skipped_count']} skipped, {result['failed_count']} failed.",
+                )
+            except MCPServiceError as exc:
+                messages.error(request, exc.message)
 
 
         return HttpResponseRedirect(reverse("admin_index"))

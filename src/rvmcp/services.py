@@ -18,8 +18,7 @@ from django.utils.dateparse import parse_datetime
 
 from rvsite.models import RVDomain, RVItem, RVLink, RVMedia, RVService
 
-from .models import MCPAuditRecord, MCPClient, MCPIdempotencyRecord, MCP_SCOPES
-
+from .models import MCPAuditRecord, MCPClient, MCPIdempotencyRecord
 
 CAPTION_TAGS = frozenset({"a", "br", "blockquote", "code", "em", "li", "ol", "p", "pre", "strong", "ul"})
 CAPTION_ATTRIBUTES = {"a": ["href", "title"]}
@@ -80,8 +79,8 @@ def authenticate_token(token):
 
 
 def require_scope(client, scope):
-    if scope not in client.scopes:
-        raise MCPServiceError("forbidden", f"Scope {scope!r} is required.")
+    if "domain:owner" not in client.scopes:
+        raise MCPServiceError("forbidden", "The domain owner capability is required.")
 
 
 def accessible_domain_ids(client):
@@ -106,6 +105,8 @@ def serialize_domain(domain):
         "min_year": domain.min_year,
         "max_year": domain.max_year,
         "last_updated": domain.last_updated.isoformat() if domain.last_updated else None,
+        "updated_at": domain.updated_at.isoformat(),
+        "revision": domain.revision,
     }
 
 
@@ -118,6 +119,8 @@ def serialize_service(service, item_count=None):
         "live": service.live,
         "hide_unmoderated": service.hide_unmoderated,
         "last_checked": service.last_checked.isoformat() if service.last_checked else None,
+        "updated_at": service.updated_at.isoformat(),
+        "revision": service.revision,
     }
     if item_count is not None:
         result["item_count"] = item_count
@@ -145,7 +148,7 @@ def serialize_item(item, client, include_media=False, include_links=False):
         "edited": item.edited,
         "mirror_state": item.mirror_state,
     }
-    if "items:raw" in client.scopes:
+    if "domain:owner" in client.scopes:
         try:
             result["raw_data"] = json.loads(item.raw_data) if item.raw_data else None
         except json.JSONDecodeError:
@@ -153,7 +156,15 @@ def serialize_item(item, client, include_media=False, include_links=False):
             result["raw_data_warning"] = "Stored legacy raw_data is not valid JSON."
     if include_media:
         result["media"] = [
-            {"id": media.id, "media_type": media.media_type, "medium": media.medium, "mime_type": media.mime_type}
+            {
+                "id": media.id,
+                "media_type": media.media_type,
+                "medium": media.medium,
+                "mime_type": media.mime_type,
+                "updated_at": media.updated_at.isoformat(),
+                "revision": media.revision,
+                "download_url": f"/mcp-download/media/{media.id}/",
+            }
             for media in item.rvmedia_set.all()
         ]
     if include_links:
@@ -164,6 +175,8 @@ def serialize_item(item, client, include_media=False, include_links=False):
                 "title": link.title,
                 "description": link.description,
                 "is_context": link.is_context,
+                "updated_at": link.updated_at.isoformat(),
+                "revision": link.revision,
             }
             for link in item.rvlink_set.all()
         ]
@@ -265,6 +278,8 @@ def refresh_domain_metadata(domain_id):
         min_year=bounds["min_year"] or 0,
         max_year=bounds["max_year"] or 0,
         last_updated=timezone.now(),
+        revision=F("revision") + 1,
+        updated_at=timezone.now(),
     )
 
 

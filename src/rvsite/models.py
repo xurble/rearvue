@@ -1,16 +1,34 @@
-from django.db import models
-from django.utils.text import slugify
-
-from django.contrib.auth.models import User
-
-# Create your models here.
 import datetime
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.db import models
+from django.utils.text import slugify
 
 
-class RVDomain(models.Model):
+class RevisionedModel(models.Model):
+    revision = models.PositiveBigIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        is_update = self.pk is not None and not self._state.adding
+        if is_update:
+            self.revision = models.F("revision") + 1
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"revision", "updated_at"}
+
+        super().save(*args, **kwargs)
+
+        if is_update:
+            self.refresh_from_db(fields=("revision", "updated_at"))
+
+
+class RVDomain(RevisionedModel):
     name = models.CharField(max_length=32, unique=True)
     alt_domain = models.CharField(max_length=128, blank=True, default='', db_index=True)
 
@@ -20,7 +38,7 @@ class RVDomain(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     display_name = models.CharField(max_length=128, default='RearVue')
-    poster_image = models.ForeignKey('RVItem', null=True, blank=True, on_delete=models.CASCADE)
+    poster_image = models.ForeignKey('RVItem', null=True, blank=True, on_delete=models.SET_NULL)
 
     blurb = models.TextField(null=True, blank=True, default='')
 
@@ -38,7 +56,7 @@ class RVDomain(models.Model):
         return f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{host}"
 
 
-class RVService(models.Model):
+class RVService(RevisionedModel):
 
     class Type(models.TextChoices):
         RSS = "rss", "RSS"
@@ -61,7 +79,7 @@ class RVService(models.Model):
         return "%s (%s) %s" % (self.name, self.type, self.config.get("username", ""))
 
 
-class RVItem(models.Model):
+class RVItem(RevisionedModel):
 
     service = models.ForeignKey(RVService, on_delete=models.CASCADE)
     domain = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
@@ -88,9 +106,6 @@ class RVItem(models.Model):
     moderated = models.BooleanField(default=False)
     edited = models.BooleanField(default=False)
 
-    revision = models.PositiveBigIntegerField(default=1)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ("-id", )
         constraints = [
@@ -109,17 +124,7 @@ class RVItem(models.Model):
         return "%s - %s (%d)" % (self.display_title, self.service.name, self.mirror_state)
 
     def save(self, *args, **kwargs):
-        is_update = self.pk is not None
-        if is_update:
-            self.revision = models.F("revision") + 1
-            update_fields = kwargs.get("update_fields")
-            if update_fields is not None:
-                kwargs["update_fields"] = set(update_fields) | {"revision", "updated_at"}
-
         super().save(*args, **kwargs)
-
-        if is_update:
-            self.refresh_from_db(fields=("revision", "updated_at"))
 
         if not self.slug:
 
@@ -217,7 +222,7 @@ class RVItem(models.Model):
         return items
 
 
-class RVLink(models.Model):
+class RVLink(RevisionedModel):
 
     item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
 
@@ -244,7 +249,7 @@ class RVLink(models.Model):
         return self.image
 
 
-class RVMedia(models.Model):
+class RVMedia(RevisionedModel):
 
     item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
 
@@ -265,11 +270,17 @@ class RVMedia(models.Model):
 
     @property
     def mime_type(self) -> str:
-        ext = self.original_media.split(".")[-1]
+        ext = self.original_media.rsplit(".", 1)[-1].lower() if "." in self.original_media else ""
         if self.media_type == 1:
-            return f"image/{ext}"
+            return {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "webp": "image/webp",
+                "gif": "image/gif",
+            }.get(ext, "image/unknown")
         elif self.media_type in [2, 3]:
-            return f"video/{ext}"
+            return "video/mp4" if ext == "mp4" else "video/unknown"
         else:
             return "unknown"
 

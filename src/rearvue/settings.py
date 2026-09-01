@@ -89,6 +89,23 @@ MCP_MAX_REQUEST_BODY_BYTES = getattr(
 MCP_IDEMPOTENCY_TTL_SECONDS = getattr(
     settings_server, "MCP_IDEMPOTENCY_TTL_SECONDS", 24 * 60 * 60
 )
+MCP_GENERATED_ROOT = getattr(
+    settings_server, "MCP_GENERATED_ROOT", os.path.join(DATA_STORE, "mcp-generated")
+)
+MCP_MAX_JOB_ATTEMPTS = getattr(settings_server, "MCP_MAX_JOB_ATTEMPTS", 3)
+MCP_JOB_LEASE_SECONDS = getattr(settings_server, "MCP_JOB_LEASE_SECONDS", 60)
+MCP_JOB_RETRY_BASE_SECONDS = getattr(settings_server, "MCP_JOB_RETRY_BASE_SECONDS", 5)
+MCP_JOB_RESULT_MAX_BYTES = getattr(settings_server, "MCP_JOB_RESULT_MAX_BYTES", 256 * 1024)
+MCP_DESTRUCTIVE_PREVIEW_TTL_SECONDS = getattr(
+    settings_server, "MCP_DESTRUCTIVE_PREVIEW_TTL_SECONDS", 5 * 60
+)
+MCP_MAX_DESTRUCTIVE_RECORDS = getattr(settings_server, "MCP_MAX_DESTRUCTIVE_RECORDS", 100)
+MCP_MAX_MEDIA_BYTES = getattr(settings_server, "MCP_MAX_MEDIA_BYTES", 25 * 1024 * 1024)
+MCP_MAX_IMAGE_PIXELS = getattr(settings_server, "MCP_MAX_IMAGE_PIXELS", 40_000_000)
+MCP_MAX_LINK_RESPONSE_BYTES = getattr(settings_server, "MCP_MAX_LINK_RESPONSE_BYTES", 1024 * 1024)
+MCP_MAX_ARCHIVE_BYTES = getattr(settings_server, "MCP_MAX_ARCHIVE_BYTES", 2 * 1024 * 1024)
+MCP_MAX_ARCHIVE_RECORDS = getattr(settings_server, "MCP_MAX_ARCHIVE_RECORDS", 10_000)
+MCP_ARTIFACT_TTL_SECONDS = getattr(settings_server, "MCP_ARTIFACT_TTL_SECONDS", 24 * 60 * 60)
 
 MIDDLEWARE = (
     'django.middleware.security.SecurityMiddleware',

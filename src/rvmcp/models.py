@@ -7,10 +7,7 @@ from django.utils import timezone
 
 from rvsite.models import RVDomain
 
-
-MCP_SCOPES = frozenset(
-    {"domains:read", "services:read", "items:read", "items:raw", "items:write"}
-)
+MCP_SCOPES = frozenset({"domain:owner"})
 
 
 class MCPClient(models.Model):
@@ -89,6 +86,64 @@ class MCPAuditRecord(models.Model):
     affected_count = models.PositiveIntegerField(default=0)
     idempotency_key = models.CharField(max_length=128, blank=True)
     details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+
+class MCPJob(models.Model):
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        RUNNING = "running", "Running"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    client = models.ForeignKey(MCPClient, on_delete=models.PROTECT, related_name="mcp_jobs")
+    domain = models.ForeignKey(RVDomain, on_delete=models.PROTECT, related_name="mcp_jobs")
+    operation = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    payload = models.JSONField(default=dict, blank=True)
+    progress_current = models.PositiveBigIntegerField(default=0)
+    progress_total = models.PositiveBigIntegerField(default=0)
+    result = models.JSONField(default=dict, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+    failures = models.JSONField(default=list, blank=True)
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    run_after = models.DateTimeField(default=timezone.now, db_index=True)
+    lease_owner = models.CharField(max_length=128, blank=True)
+    lease_token = models.CharField(max_length=64, blank=True, editable=False)
+    leased_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    artifact_path = models.CharField(max_length=512, blank=True)
+    artifact_sha256 = models.CharField(max_length=64, blank=True)
+    artifact_size = models.PositiveBigIntegerField(default=0)
+    artifact_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        indexes = [
+            models.Index(fields=("status", "run_after", "id"), name="rvmcp_job_claim_idx"),
+            models.Index(fields=("domain", "created_at", "id"), name="rvmcp_job_domain_idx"),
+        ]
+
+
+class MCPDestructivePreview(models.Model):
+    client = models.ForeignKey(MCPClient, on_delete=models.PROTECT, related_name="destructive_previews")
+    domain = models.ForeignKey(RVDomain, on_delete=models.PROTECT, related_name="destructive_previews")
+    operation = models.CharField(max_length=64)
+    selector = models.JSONField(default=dict)
+    impact = models.JSONField(default=dict)
+    impact_hash = models.CharField(max_length=64)
+    token_hash = models.CharField(max_length=64, unique=True, editable=False)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
