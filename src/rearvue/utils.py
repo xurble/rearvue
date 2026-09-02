@@ -1,16 +1,17 @@
 
-from datetime import datetime
 import ipaddress
 import logging
 import os
 import random
 import socket
-from urllib.parse import urlparse, urljoin
+from datetime import datetime
+from urllib.parse import urljoin, urlparse, urlunparse
 
+import requests
 from bs4 import BeautifulSoup
 from django.conf import settings
-from django.http import HttpResponseNotFound, HttpResponseForbidden
-import requests
+from django.http import HttpResponseForbidden, HttpResponseNotFound
+from requests.adapters import HTTPAdapter
 from webpreview import webpreview
 
 from rvsite.models import RVDomain, RVLink
@@ -40,20 +41,30 @@ def _ip_is_public_safe(ip):
     )
 
 
-def _resolve_host_is_public(host):
+def _resolve_public_addresses(host, port=None):
     try:
-        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        return (str(literal),) if _ip_is_public_safe(literal) else ()
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError:
-        return False
+        return ()
+    addresses = []
     for info in infos:
         ip_str = info[4][0]
         try:
             ip = ipaddress.ip_address(ip_str)
         except ValueError:
-            continue
+            return ()
         if not _ip_is_public_safe(ip):
-            return False
-    return bool(infos)
+            return ()
+        normalized = str(ip)
+        if normalized not in addresses:
+            addresses.append(normalized)
+    return tuple(addresses)
 
 
 def validate_public_http_url(url):
@@ -69,10 +80,16 @@ def validate_public_http_url(url):
     host = parsed.hostname
     if not host:
         return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
     lh = host.lower().rstrip(".")
     if lh in BLOCKED_HOSTNAMES:
         return None
-    if lh.endswith(".local") or lh.endswith(".localhost"):
+    if lh.endswith((".local", ".localhost")):
         return None
     try:
         ip = ipaddress.ip_address(host)
@@ -81,9 +98,83 @@ def validate_public_http_url(url):
         return parsed.geturl()
     except ValueError:
         pass
-    if not _resolve_host_is_public(host):
+    if not _resolve_public_addresses(host, port):
         return None
     return parsed.geturl()
+
+
+class _PinnedHTTPSAdapter(HTTPAdapter):
+    def __init__(self, server_hostname):
+        self.server_hostname = server_hostname
+        super().__init__()
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        pool_kwargs["assert_hostname"] = self.server_hostname
+        pool_kwargs["server_hostname"] = self.server_hostname
+        return super().init_poolmanager(
+            connections,
+            maxsize,
+            block=block,
+            **pool_kwargs,
+        )
+
+
+def _request_pinned_public_url(url, *, timeout, headers, stream):
+    parsed = urlparse(url)
+    hostname = parsed.hostname.rstrip(".")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    addresses = _resolve_public_addresses(hostname, port)
+    if not addresses:
+        raise ValueError("URL host does not resolve exclusively to public addresses")
+
+    address = addresses[0]
+    address_host = f"[{address}]" if ":" in address else address
+    address_netloc = address_host
+    if parsed.port is not None:
+        address_netloc = f"{address_netloc}:{parsed.port}"
+    pinned_url = urlunparse(
+        (parsed.scheme, address_netloc, parsed.path or "/", "", parsed.query, "")
+    )
+
+    tls_hostname = hostname.encode("idna").decode("ascii")
+    host_header = f"[{hostname}]" if ":" in hostname else hostname
+    if parsed.port is not None:
+        host_header = f"{host_header}:{parsed.port}"
+    request_headers = {
+        key: value
+        for key, value in (headers or {}).items()
+        if key.lower() != "host"
+    }
+    request_headers["Host"] = host_header
+
+    session = requests.Session()
+    session.trust_env = False
+    if parsed.scheme == "https":
+        session.mount("https://", _PinnedHTTPSAdapter(tls_hostname))
+    try:
+        response = session.get(
+            pinned_url,
+            timeout=timeout,
+            verify=True,
+            allow_redirects=False,
+            headers=request_headers,
+            stream=stream,
+        )
+    except Exception:
+        session.close()
+        raise
+
+    original_close = response.close
+
+    def close_response():
+        try:
+            original_close()
+        finally:
+            session.close()
+
+    response.close = close_response
+    response.url = url
+    return response
 
 
 def get_public_url(url, *, timeout=30, headers=None, stream=False):
@@ -93,15 +184,12 @@ def get_public_url(url, *, timeout=30, headers=None, stream=False):
         raise ValueError("URL scheme or host is not allowed")
 
     for _ in range(MAX_REDIRECT_HOPS):
-        request_options = {
-            "timeout": timeout,
-            "verify": True,
-            "allow_redirects": False,
-            "headers": headers,
-        }
-        if stream:
-            request_options["stream"] = True
-        response = requests.get(current, **request_options)  # nosec B113 - timeout is always in request_options.
+        response = _request_pinned_public_url(
+            current,
+            timeout=timeout,
+            headers=headers,
+            stream=stream,
+        )
         if response.status_code not in REDIRECT_STATUSES:
             return response
 

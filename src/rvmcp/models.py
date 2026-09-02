@@ -134,6 +134,38 @@ class MCPJob(models.Model):
         ]
 
 
+class MCPExportSnapshot(models.Model):
+    client = models.ForeignKey(MCPClient, on_delete=models.CASCADE, related_name="export_snapshots")
+    filters = models.JSONField(default=dict)
+    binding_hash = models.CharField(max_length=64)
+    snapshot_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+
+class MCPExportSnapshotRecord(models.Model):
+    snapshot = models.ForeignKey(MCPExportSnapshot, on_delete=models.CASCADE, related_name="records")
+    ordinal = models.PositiveBigIntegerField()
+    kind = models.CharField(max_length=32)
+    source_id = models.PositiveBigIntegerField()
+    payload = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ("ordinal",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("snapshot", "ordinal"),
+                name="rvmcp_export_snapshot_ordinal_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("snapshot", "ordinal"), name="rvmcp_export_page_idx"),
+        ]
+
+
 class MCPDestructivePreview(models.Model):
     client = models.ForeignKey(MCPClient, on_delete=models.PROTECT, related_name="destructive_previews")
     domain = models.ForeignKey(RVDomain, on_delete=models.PROTECT, related_name="destructive_previews")

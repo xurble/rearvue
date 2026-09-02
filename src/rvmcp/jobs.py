@@ -1,18 +1,19 @@
 import json
 import logging
 import secrets
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
 from django.conf import settings
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.db.models import F, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from .models import MCPJob
+from .models import MCPClient, MCPJob
 
 logger = logging.getLogger(__name__)
 JobHandler = Callable[[MCPJob, Callable[..., None]], dict[str, Any] | None]
@@ -126,7 +127,24 @@ def claim_next_job(worker_id, now=None):
     return None
 
 
+def _require_job_authorized(job):
+    client = MCPClient.objects.filter(pk=job.client_id).first()
+    if (
+        client is None
+        or not client.is_active
+        or "domain:owner" not in client.scopes
+        or not client.domains.filter(pk=job.domain_id).exists()
+    ):
+        raise JobExecutionError(
+            "Job authorization was revoked before execution.",
+            retryable=False,
+            code="authorization_revoked",
+        )
+    job.client = client
+
+
 def heartbeat(job, *, current=None, total=None):
+    _require_job_authorized(job)
     now = timezone.now()
     updates = {
         "heartbeat_at": now,
@@ -148,6 +166,62 @@ def heartbeat(job, *, current=None, total=None):
     ).update(**updates)
     if not updated:
         raise JobExecutionError("Job lease was lost.", retryable=True, code="lease_lost")
+
+
+def _lease_renewal_interval():
+    return max(0.1, max(5, settings.MCP_JOB_LEASE_SECONDS) / 3)
+
+
+class _LeaseRenewer:
+    def __init__(self, job):
+        self.job = job
+        self._stop = threading.Event()
+        self._error = None
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"mcp-job-lease-{job.pk}",
+            daemon=True,
+        )
+
+    def start(self):
+        self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+        self._thread.join(timeout=min(5, max(1, _lease_renewal_interval() * 2)))
+        if self._thread.is_alive():
+            self._error = JobExecutionError(
+                "Job lease renewal did not stop cleanly.",
+                retryable=True,
+                code="lease_renewal_failed",
+            )
+
+    def raise_if_failed(self):
+        if self._error is not None:
+            raise self._error
+
+    def _run(self):
+        close_old_connections()
+        try:
+            while not self._stop.wait(_lease_renewal_interval()):
+                try:
+                    heartbeat(self.job)
+                except JobExecutionError as exc:
+                    self._error = exc
+                    return
+                except Exception:
+                    logger.exception(
+                        "MCP job lease renewal failed",
+                        extra={"job_id": self.job.pk, "operation": self.job.operation},
+                    )
+                    self._error = JobExecutionError(
+                        "Job lease renewal failed.",
+                        retryable=True,
+                        code="lease_renewal_failed",
+                    )
+                    return
+        finally:
+            close_old_connections()
 
 
 def _bounded_result(result):
@@ -226,7 +300,14 @@ def execute_claimed_job(job):
         )
         return
     try:
-        result = handler(job, lambda **progress: heartbeat(job, **progress))
+        _require_job_authorized(job)
+        renewer = _LeaseRenewer(job)
+        renewer.start()
+        try:
+            result = handler(job, lambda **progress: heartbeat(job, **progress))
+        finally:
+            renewer.stop()
+        renewer.raise_if_failed()
         _finish_success(job, result)
     except JobExecutionError as exc:
         _finish_failure(job, exc)

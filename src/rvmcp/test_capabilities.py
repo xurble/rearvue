@@ -282,6 +282,34 @@ class MCPCapabilityTests(TestCase):
             )
         self.assertEqual(caught.exception.code, "invalid_cursor")
 
+    def test_json_export_preserves_record_values_when_source_changes_between_pages(self):
+        later = RVItem.objects.create(
+            service=self.service,
+            domain=self.domain,
+            item_id="item-2",
+            date_created="2025-01-02",
+            datetime_created="2025-01-02T00:00:00Z",
+            title="before snapshot",
+        )
+        first = export_json_page(
+            self.client_record,
+            {"domain_ids": [self.domain.id], "kinds": ["items"]},
+            limit=1,
+        )
+
+        later.title = "after snapshot"
+        later.save(update_fields=["title"])
+        second = export_json_page(
+            self.client_record,
+            {"domain_ids": [self.domain.id], "kinds": ["items"]},
+            cursor=first["next_cursor"],
+            limit=1,
+        )
+
+        self.assertEqual(second["records"][0]["record"]["id"], later.id)
+        self.assertEqual(second["records"][0]["record"]["title"], "before snapshot")
+        self.assertIsNone(second["next_cursor"])
+
     def test_async_export_creates_authenticated_checked_artifact(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(
             DATA_STORE=directory,

@@ -106,6 +106,9 @@ MCP_MAX_LINK_RESPONSE_BYTES = getattr(settings_server, "MCP_MAX_LINK_RESPONSE_BY
 MCP_MAX_ARCHIVE_BYTES = getattr(settings_server, "MCP_MAX_ARCHIVE_BYTES", 2 * 1024 * 1024)
 MCP_MAX_ARCHIVE_RECORDS = getattr(settings_server, "MCP_MAX_ARCHIVE_RECORDS", 10_000)
 MCP_ARTIFACT_TTL_SECONDS = getattr(settings_server, "MCP_ARTIFACT_TTL_SECONDS", 24 * 60 * 60)
+MCP_EXPORT_SNAPSHOT_TTL_SECONDS = getattr(
+    settings_server, "MCP_EXPORT_SNAPSHOT_TTL_SECONDS", 24 * 60 * 60
+)
 
 MIDDLEWARE = (
     'django.middleware.security.SecurityMiddleware',

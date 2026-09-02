@@ -52,10 +52,22 @@ def _resource_queryset(resource, domain_id, ids):
     return RVItem.objects.filter(id__in=ids, domain_id=domain_id)
 
 
-def calculate_impact(domain_id, selector):
+def calculate_impact(domain_id, selector, *, lock=False):
     resource = selector["resource"]
     ids = selector["ids"]
-    rows = list(_resource_queryset(resource, domain_id, ids).order_by("id"))
+    if lock:
+        RVDomain.objects.select_for_update().get(pk=domain_id)
+        if resource in {"links", "media"}:
+            parent_ids = list(
+                _resource_queryset(resource, domain_id, ids)
+                .order_by("item_id")
+                .values_list("item_id", flat=True)
+            )
+            list(RVItem.objects.select_for_update().filter(id__in=parent_ids).order_by("id"))
+    queryset = _resource_queryset(resource, domain_id, ids).order_by("id")
+    if lock:
+        queryset = queryset.select_for_update()
+    rows = list(queryset)
     if len(rows) != len(ids):
         raise MCPServiceError("not_found", "One or more selected records were not found.", path="ids")
     impact = {
@@ -71,16 +83,22 @@ def calculate_impact(domain_id, selector):
     if resource == "media":
         impact["controlled_file_count"] = sum(bool(row.original_media) for row in rows)
     elif resource == "items":
-        media = list(RVMedia.objects.filter(item_id__in=ids).order_by("id"))
-        links = list(RVLink.objects.filter(item_id__in=ids).order_by("id"))
+        media_queryset = RVMedia.objects.filter(item_id__in=ids).order_by("id")
+        link_queryset = RVLink.objects.filter(item_id__in=ids).order_by("id")
+        poster_queryset = RVDomain.objects.filter(poster_image_id__in=ids).order_by("id")
+        if lock:
+            media_queryset = media_queryset.select_for_update()
+            link_queryset = link_queryset.select_for_update()
+            poster_queryset = poster_queryset.select_for_update()
+        media = list(media_queryset)
+        links = list(link_queryset)
+        poster_domains = list(poster_queryset)
         impact["media_count"] = len(media)
         impact["link_count"] = len(links)
         impact["controlled_file_count"] = sum(bool(row.original_media) for row in media)
         impact["media_records"] = [{"id": row.id, "revision": row.revision} for row in media]
         impact["link_records"] = [{"id": row.id, "revision": row.revision} for row in links]
-        impact["poster_domain_ids"] = list(
-            RVDomain.objects.filter(poster_image_id__in=ids).order_by("id").values_list("id", flat=True)
-        )
+        impact["poster_domain_ids"] = [domain.id for domain in poster_domains]
     return impact
 
 
@@ -156,7 +174,14 @@ def confirm_delete(client, preview_id, confirmation_token):
                 details={"code": "invalid_confirmation", "preview_id": preview.id},
             )
             raise MCPServiceError("invalid_confirmation", "Confirmation token is invalid.")
-        current_impact = calculate_impact(preview.domain_id, preview.selector)
+        # SQLite has no row-level SELECT FOR UPDATE. A no-op write acquires its
+        # database write lock before impact revalidation; row-locking databases
+        # continue to rely on the targeted locks below.
+        MCPDestructivePreview.objects.filter(pk=preview.pk).update(token_hash=F("token_hash"))
+        # Lock the selected records and every dependent row represented in the
+        # preview before comparing the impact. Locking items also blocks new
+        # media/link foreign-key references until the delete commits.
+        current_impact = calculate_impact(preview.domain_id, preview.selector, lock=True)
         if canonical_hash(current_impact) != preview.impact_hash or current_impact != preview.impact:
             audit(
                 client,

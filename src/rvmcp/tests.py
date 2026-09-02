@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from datetime import datetime, timedelta
 from datetime import timezone as datetime_timezone
 from unittest.mock import patch
@@ -7,7 +8,7 @@ from unittest.mock import patch
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.db import close_old_connections
+from django.db import IntegrityError, OperationalError, close_old_connections
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from starlette.testclient import TestClient
@@ -15,11 +16,13 @@ from starlette.testclient import TestClient
 from rvsite.models import RVDomain, RVItem, RVLink, RVMedia, RVService
 
 from .auth import MCPAuthenticationMiddleware, current_client_id
+from .destruction import calculate_impact, confirm_delete, preview_delete
 from .jobs import (
     JOB_REGISTRY,
     JobExecutionError,
     claim_next_job,
     enqueue_job,
+    execute_claimed_job,
     recover_expired_jobs,
     run_one_job,
 )
@@ -624,6 +627,42 @@ class MCPJobTests(MCPTestMixin, TestCase):
         self.assertEqual(exhausted.status, MCPJob.Status.FAILED)
         self.assertEqual(exhausted.result["error"]["code"], "lease_expired")
 
+    def test_worker_rejects_jobs_after_client_authorization_is_revoked(self):
+        original_revision = self.domain.revision
+        disabled = enqueue_job(self.client, self.domain, "domain_metadata_refresh")
+        self.client.enabled = False
+        self.client.save(update_fields=["enabled"])
+
+        self.assertTrue(run_one_job("disabled-client-worker"))
+        disabled.refresh_from_db()
+        self.domain.refresh_from_db()
+        self.assertEqual(disabled.status, MCPJob.Status.FAILED)
+        self.assertEqual(disabled.result["error"]["code"], "authorization_revoked")
+        self.assertEqual(self.domain.revision, original_revision)
+
+        self.client.enabled = True
+        self.client.save(update_fields=["enabled"])
+        ungranted = enqueue_job(self.client, self.domain, "domain_metadata_refresh")
+        self.client.domains.remove(self.domain)
+
+        self.assertTrue(run_one_job("ungranted-client-worker"))
+        ungranted.refresh_from_db()
+        self.domain.refresh_from_db()
+        self.assertEqual(ungranted.status, MCPJob.Status.FAILED)
+        self.assertEqual(ungranted.result["error"]["code"], "authorization_revoked")
+        self.assertEqual(self.domain.revision, original_revision)
+
+    def test_worker_rejects_jobs_after_owner_scope_is_revoked(self):
+        job = enqueue_job(self.client, self.domain, "domain_metadata_refresh")
+        self.client.scopes = []
+        self.client.save(update_fields=["scopes"])
+
+        self.assertTrue(run_one_job("scope-revoked-worker"))
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, MCPJob.Status.FAILED)
+        self.assertEqual(job.result["error"]["code"], "authorization_revoked")
+
     def test_management_command_once_does_not_poll_forever(self):
         enqueue_job(self.client, self.domain, "domain_metadata_refresh")
         call_command("run_mcp_jobs", once=True, worker_id="command-test")
@@ -684,6 +723,93 @@ class MCPConcurrencyTests(MCPTestMixin, TransactionTestCase):
             MCPIdempotencyRecord.objects.filter(operation="concurrent_probe", key="same-key").count(),
             1,
         )
+
+    @override_settings(MCP_JOB_LEASE_SECONDS=5)
+    def test_independent_lease_renewal_prevents_slow_job_reclaim(self):
+        observed = {}
+
+        def slow_handler(job, report):
+            initial_heartbeat = job.heartbeat_at
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                current = MCPJob.objects.get(pk=job.pk)
+                if current.heartbeat_at > initial_heartbeat:
+                    break
+                time.sleep(0.01)
+            else:
+                self.fail(
+                    "Lease renewer did not heartbeat while the handler was blocked"
+                )
+            observed["second_claim"] = claim_next_job(
+                "second-worker",
+                now=job.leased_until + timedelta(microseconds=1),
+            )
+            return {"slow": True}
+
+        JOB_REGISTRY["test_slow_handler"] = slow_handler
+        try:
+            job = MCPJob.objects.create(
+                client=self.client,
+                domain=self.domain,
+                operation="test_slow_handler",
+            )
+            claimed = claim_next_job("first-worker")
+            with patch("rvmcp.jobs._lease_renewal_interval", return_value=0.01):
+                execute_claimed_job(claimed)
+        finally:
+            JOB_REGISTRY.pop("test_slow_handler", None)
+
+        job.refresh_from_db()
+        self.assertIsNone(observed["second_claim"])
+        self.assertEqual(job.status, MCPJob.Status.SUCCEEDED)
+        self.assertEqual(job.attempt_count, 1)
+
+    def test_confirm_delete_blocks_new_dependents_after_impact_is_locked(self):
+        item = RVItem.objects.create(
+            service=self.service,
+            domain=self.domain,
+            item_id="delete-race",
+            date_created="2025-01-01",
+            datetime_created="2025-01-01T00:00:00Z",
+        )
+        preview = preview_delete(self.client, self.domain.id, "items", [item.id])
+        locked = threading.Event()
+        writer_started = threading.Event()
+        writer_done = threading.Event()
+        writer_succeeded = []
+
+        def writer():
+            close_old_connections()
+            try:
+                locked.wait(timeout=5)
+                writer_started.set()
+                RVLink.objects.create(item_id=item.id, url="https://example.com/race")
+                writer_succeeded.append(True)
+            except (IntegrityError, OperationalError):
+                pass
+            finally:
+                writer_done.set()
+                close_old_connections()
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+
+        def pause_after_lock(domain_id, selector, *, lock=False):
+            impact = calculate_impact(domain_id, selector, lock=lock)
+            if lock:
+                locked.set()
+                self.assertTrue(writer_started.wait(timeout=5))
+                time.sleep(0.1)
+                self.assertEqual(writer_succeeded, [])
+            return impact
+
+        with patch("rvmcp.destruction.calculate_impact", side_effect=pause_after_lock):
+            confirm_delete(self.client, preview["id"], preview["confirmation_token"])
+
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(writer_succeeded, [])
+        self.assertFalse(RVItem.objects.filter(pk=item.id).exists())
 
     def test_concurrent_upserts_create_one_identity_and_share_winner(self):
         payload = self.payload("concurrent-item")

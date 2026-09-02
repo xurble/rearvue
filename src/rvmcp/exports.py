@@ -9,6 +9,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
+from django.db import connection, transaction
+from django.db.models import F
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -16,7 +18,7 @@ from rvsite.models import RVDomain, RVItem, RVLink, RVMedia, RVService
 
 from .capabilities import _generated_root, serialize_link, serialize_media
 from .jobs import enqueue_job
-from .models import MCPAuditRecord
+from .models import MCPAuditRecord, MCPExportSnapshot, MCPExportSnapshotRecord
 from .services import (
     MCPServiceError,
     accessible_domain_ids,
@@ -74,12 +76,11 @@ def normalize_export_filters(client, filters=None):
     }
 
 
-def _encode_export_cursor(snapshot, kind, last_id, binding):
+def _encode_export_cursor(snapshot_id, last_ordinal, binding):
     payload = {
-        "v": 1,
-        "snapshot": snapshot.isoformat(),
-        "kind": kind,
-        "last_id": last_id,
+        "v": 2,
+        "snapshot_id": snapshot_id,
+        "last_ordinal": last_ordinal,
         "binding": canonical_hash(binding),
     }
     return base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
@@ -87,40 +88,22 @@ def _encode_export_cursor(snapshot, kind, last_id, binding):
 
 def _decode_export_cursor(cursor, binding):
     if not cursor:
-        return timezone.now(), None, 0
+        return None, 0
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded).decode())
-        snapshot = _parse_export_time(payload["snapshot"], "cursor")
-        kind = payload["kind"]
-        last_id = int(payload["last_id"])
+        snapshot_id = int(payload["snapshot_id"])
+        last_ordinal = int(payload["last_ordinal"])
         if (
-            payload.get("v") != 1
+            payload.get("v") != 2
             or payload.get("binding") != canonical_hash(binding)
-            or kind not in EXPORT_KINDS
-            or last_id < 0
+            or snapshot_id < 1
+            or last_ordinal < 0
         ):
             raise ValueError
-        return snapshot, kind, last_id
+        return snapshot_id, last_ordinal
     except (ValueError, TypeError, KeyError, json.JSONDecodeError, binascii.Error) as exc:
         raise MCPServiceError("invalid_cursor", "Cursor is invalid for these export filters.", path="cursor") from exc
-
-
-def _query_for_kind(kind, domain_ids, snapshot, updated_after, last_id):
-    if kind == "domains":
-        queryset = RVDomain.objects.filter(id__in=domain_ids)
-    elif kind == "services":
-        queryset = RVService.objects.filter(domain_id__in=domain_ids)
-    elif kind == "items":
-        queryset = RVItem.objects.select_related("domain", "service").filter(domain_id__in=domain_ids)
-    elif kind == "media_manifest":
-        queryset = RVMedia.objects.select_related("item", "item__domain").filter(item__domain_id__in=domain_ids)
-    else:
-        queryset = RVLink.objects.select_related("item", "item__domain").filter(item__domain_id__in=domain_ids)
-    queryset = queryset.filter(id__gt=last_id, updated_at__lte=snapshot)
-    if updated_after is not None:
-        queryset = queryset.filter(updated_at__gt=updated_after)
-    return queryset.order_by("id")
 
 
 def _serialize_export(kind, record, client):
@@ -137,6 +120,108 @@ def _serialize_export(kind, record, client):
     return {"kind": kind, "record": value}
 
 
+def _materialize_export_snapshot(client, normalized, updated_after):
+    domain_ids = normalized["domain_ids"]
+    with transaction.atomic():
+        MCPExportSnapshot.objects.filter(expires_at__lte=timezone.now()).delete()
+        # The parent-first lock order prevents new services/items and dependent
+        # media/links from entering the selected domains while their values are
+        # materialized. Updates to existing rows are held until the snapshot is
+        # complete, so later pages never query mutable source records.
+        domains = list(RVDomain.objects.select_for_update().filter(id__in=domain_ids).order_by("id"))
+        if connection.vendor == "sqlite":
+            # SQLite ignores SELECT FOR UPDATE. Acquire its database write lock
+            # before reading any mutable source rows so the materialization is
+            # still internally consistent.
+            RVDomain.objects.filter(id__in=domain_ids).update(revision=F("revision"))
+        kinds = set(normalized["kinds"])
+        services = (
+            list(
+                RVService.objects.select_for_update()
+                .select_related("domain")
+                .filter(domain_id__in=domain_ids)
+                .order_by("id")
+            )
+            if "services" in kinds
+            else []
+        )
+        items = (
+            list(
+                RVItem.objects.select_for_update()
+                .select_related("domain", "service")
+                .filter(domain_id__in=domain_ids)
+                .order_by("id")
+            )
+            if kinds.intersection({"items", "media_manifest", "links"})
+            else []
+        )
+        media = (
+            list(
+                RVMedia.objects.select_for_update()
+                .select_related("item", "item__domain")
+                .filter(item__domain_id__in=domain_ids)
+                .order_by("id")
+            )
+            if "media_manifest" in kinds
+            else []
+        )
+        links = (
+            list(
+                RVLink.objects.select_for_update()
+                .select_related("item", "item__domain")
+                .filter(item__domain_id__in=domain_ids)
+                .order_by("id")
+            )
+            if "links" in kinds
+            else []
+        )
+        rows_by_kind = {
+            "domains": domains,
+            "services": services,
+            "items": items,
+            "media_manifest": media,
+            "links": links,
+        }
+        snapshot_at = timezone.now()
+        snapshot = MCPExportSnapshot.objects.create(
+            client=client,
+            filters=normalized,
+            binding_hash=canonical_hash(normalized),
+            snapshot_at=snapshot_at,
+            expires_at=snapshot_at + timedelta(seconds=settings.MCP_EXPORT_SNAPSHOT_TTL_SECONDS),
+        )
+        materialized = []
+        ordinal = 0
+        for kind in normalized["kinds"]:
+            for record in rows_by_kind[kind]:
+                if updated_after is not None and record.updated_at <= updated_after:
+                    continue
+                ordinal += 1
+                materialized.append(
+                    MCPExportSnapshotRecord(
+                        snapshot=snapshot,
+                        ordinal=ordinal,
+                        kind=kind,
+                        source_id=record.id,
+                        payload=_serialize_export(kind, record, client),
+                    )
+                )
+        MCPExportSnapshotRecord.objects.bulk_create(materialized, batch_size=500)
+        return snapshot
+
+
+def _load_export_snapshot(client, snapshot_id, normalized):
+    snapshot = MCPExportSnapshot.objects.filter(
+        pk=snapshot_id,
+        client=client,
+        binding_hash=canonical_hash(normalized),
+        expires_at__gt=timezone.now(),
+    ).first()
+    if snapshot is None:
+        raise MCPServiceError("invalid_cursor", "Cursor is invalid or expired.", path="cursor")
+    return snapshot
+
+
 def export_json_page(client, filters=None, cursor=None, limit=None):
     require_scope(client, "domain:owner")
     if limit is None:
@@ -147,30 +232,24 @@ def export_json_page(client, filters=None, cursor=None, limit=None):
         )
     normalized = normalize_export_filters(client, filters)
     updated_after = _parse_export_time(normalized["updated_after"], "filters.updated_after")
-    snapshot, cursor_kind, last_id = _decode_export_cursor(cursor, normalized)
-    records = []
-    for kind in normalized["kinds"]:
-        if cursor_kind is not None and EXPORT_KINDS.index(kind) < EXPORT_KINDS.index(cursor_kind):
-            continue
-        kind_last_id = last_id if kind == cursor_kind else 0
-        remaining = limit + 1 - len(records)
-        if remaining <= 0:
-            break
-        queryset = _query_for_kind(
-            kind, normalized["domain_ids"], snapshot, updated_after, kind_last_id
-        )
-        records.extend((kind, row) for row in queryset[:remaining])
+    snapshot_id, last_ordinal = _decode_export_cursor(cursor, normalized)
+    if snapshot_id is None:
+        snapshot = _materialize_export_snapshot(client, normalized, updated_after)
+    else:
+        snapshot = _load_export_snapshot(client, snapshot_id, normalized)
+    records = list(snapshot.records.filter(ordinal__gt=last_ordinal).order_by("ordinal")[: limit + 1])
     has_more = len(records) > limit
     records = records[:limit]
     next_cursor = None
     if has_more and records:
-        final_kind, final_record = records[-1]
-        next_cursor = _encode_export_cursor(snapshot, final_kind, final_record.id, normalized)
+        next_cursor = _encode_export_cursor(snapshot.id, records[-1].ordinal, normalized)
+    elif not has_more:
+        snapshot.delete()
     return {
         "ok": True,
-        "snapshot": snapshot.isoformat(),
+        "snapshot": snapshot.snapshot_at.isoformat(),
         "filters": normalized,
-        "records": [_serialize_export(kind, row, client) for kind, row in records],
+        "records": [record.payload for record in records],
         "next_cursor": next_cursor,
     }
 

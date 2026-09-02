@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
@@ -10,10 +10,10 @@ from rvsite.models import RVDomain, RVItem, RVLink, RVService
 
 
 class PublicUrlTests(SimpleTestCase):
-    @patch("rearvue.utils._resolve_host_is_public", return_value=True)
-    @patch("rearvue.utils.requests.get")
-    def test_get_public_url_validates_redirect_target(self, request_get, _resolve):
-        request_get.return_value = SimpleNamespace(
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    @patch("rearvue.utils._request_pinned_public_url")
+    def test_get_public_url_validates_redirect_target(self, request_url, _resolve):
+        request_url.return_value = SimpleNamespace(
             status_code=302,
             headers={"Location": "http://127.0.0.1/private"},
         )
@@ -21,20 +21,54 @@ class PublicUrlTests(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, "Redirect led"):
             get_public_url("https://example.com/start")
 
-    @patch("rearvue.utils._resolve_host_is_public", return_value=True)
-    @patch("rearvue.utils.requests.get")
-    def test_get_public_url_returns_non_redirect_response(self, request_get, _resolve):
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    @patch("rearvue.utils._request_pinned_public_url")
+    def test_get_public_url_returns_non_redirect_response(self, request_url, _resolve):
         response = SimpleNamespace(status_code=200, headers={})
-        request_get.return_value = response
+        request_url.return_value = response
 
         self.assertIs(get_public_url("https://example.com/image.jpg"), response)
-        request_get.assert_called_once_with(
+        request_url.assert_called_once_with(
             "https://example.com/image.jpg",
             timeout=30,
-            verify=True,
-            allow_redirects=False,
             headers=None,
+            stream=False,
         )
+
+    @patch("rearvue.utils.requests.Session")
+    @patch(
+        "rearvue.utils._resolve_public_addresses",
+        side_effect=[("93.184.216.34",), ()],
+    )
+    def test_get_public_url_rejects_dns_rebinding_before_connect(
+        self, _resolve, session
+    ):
+        with self.assertRaisesMessage(ValueError, "exclusively to public"):
+            get_public_url("https://example.com/private")
+
+        session.assert_not_called()
+
+    @patch("rearvue.utils.requests.Session")
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    def test_get_public_url_connects_to_validated_ip_with_original_tls_host(
+        self, _resolve, session
+    ):
+        response_close = Mock()
+        response = SimpleNamespace(status_code=200, headers={}, close=response_close)
+        session.return_value.get.return_value = response
+
+        returned = get_public_url("https://example.com/image.jpg")
+
+        requested_url = session.return_value.get.call_args.args[0]
+        requested_options = session.return_value.get.call_args.kwargs
+        self.assertEqual(requested_url, "https://93.184.216.34/image.jpg")
+        self.assertEqual(requested_options["headers"]["Host"], "example.com")
+        adapter = session.return_value.mount.call_args.args[1]
+        self.assertEqual(adapter.server_hostname, "example.com")
+        self.assertFalse(session.return_value.trust_env)
+        returned.close()
+        response_close.assert_called_once()
+        session.return_value.close.assert_called_once()
 
 
 class DomainOriginTests(SimpleTestCase):
