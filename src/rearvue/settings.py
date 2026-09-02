@@ -84,7 +84,7 @@ MCP_DEFAULT_PAGE_SIZE = getattr(settings_server, "MCP_DEFAULT_PAGE_SIZE", 50)
 MCP_MAX_BULK_ITEMS = getattr(settings_server, "MCP_MAX_BULK_ITEMS", 100)
 MCP_MAX_RAW_DATA_BYTES = getattr(settings_server, "MCP_MAX_RAW_DATA_BYTES", 256 * 1024)
 MCP_MAX_REQUEST_BODY_BYTES = getattr(
-    settings_server, "MCP_MAX_REQUEST_BODY_BYTES", 2 * 1024 * 1024
+    settings_server, "MCP_MAX_REQUEST_BODY_BYTES", 3 * 1024 * 1024
 )
 MCP_IDEMPOTENCY_TTL_SECONDS = getattr(
     settings_server, "MCP_IDEMPOTENCY_TTL_SECONDS", 24 * 60 * 60
@@ -108,6 +108,9 @@ MCP_MAX_ARCHIVE_RECORDS = getattr(settings_server, "MCP_MAX_ARCHIVE_RECORDS", 10
 MCP_ARTIFACT_TTL_SECONDS = getattr(settings_server, "MCP_ARTIFACT_TTL_SECONDS", 24 * 60 * 60)
 MCP_EXPORT_SNAPSHOT_TTL_SECONDS = getattr(
     settings_server, "MCP_EXPORT_SNAPSHOT_TTL_SECONDS", 24 * 60 * 60
+)
+MCP_MAX_EXPORT_SNAPSHOT_RECORDS = getattr(
+    settings_server, "MCP_MAX_EXPORT_SNAPSHOT_RECORDS", 10_000
 )
 
 MIDDLEWARE = (

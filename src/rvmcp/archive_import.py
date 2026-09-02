@@ -22,6 +22,16 @@ from .services import (
 )
 
 TWITTER_PREFIX = "window.YTD.tweets.part0 = "
+ARCHIVE_REQUEST_ENVELOPE_RESERVE_BYTES = 16 * 1024
+
+
+def maximum_archive_bytes():
+    request_capacity = max(
+        0,
+        settings.MCP_MAX_REQUEST_BODY_BYTES - ARCHIVE_REQUEST_ENVELOPE_RESERVE_BYTES,
+    )
+    base64_capacity = (request_capacity // 4) * 3
+    return min(settings.MCP_MAX_ARCHIVE_BYTES, base64_capacity)
 
 
 def decode_twitter_archive(source):
@@ -69,6 +79,10 @@ def _tweet_values(service, wrapper):
         created = datetime.strptime(created_at, "%a %b %d %H:%M:%S %z %Y")
     except ValueError as exc:
         raise MCPServiceError("validation_error", "Tweet created_at is invalid.") from exc
+    entities = tweet.get("entities", {})
+    extended_entities = tweet.get("extended_entities", {})
+    if not isinstance(entities, dict) or not isinstance(extended_entities, dict):
+        raise MCPServiceError("validation_error", "Tweet entities are invalid.")
     username = quote(str(service.config.get("username", ""))[:128], safe="")
     return tweet_id, {
         "domain": service.domain,
@@ -77,7 +91,7 @@ def _tweet_values(service, wrapper):
         "remote_url": f"https://twitter.com/{username}/status/{quote(tweet_id, safe='')}",
         "caption": sanitize_caption(text, "plain"),
         "raw_data": normalize_raw_data(tweet),
-        "mirror_state": 0 if (tweet.get("extended_entities") or tweet.get("entities", {}).get("media")) else 1,
+        "mirror_state": 0 if (extended_entities or entities.get("media")) else 1,
     }
 
 
@@ -139,12 +153,19 @@ def submit_twitter_archive(client, domain_id, service_id, archive_base64):
         raise MCPServiceError("not_found", "Twitter service not found.", path="service_id")
     if not isinstance(archive_base64, str):
         raise MCPServiceError("validation_error", "archive_base64 must be a string.", path="archive_base64")
-    if len(archive_base64) > ((settings.MCP_MAX_ARCHIVE_BYTES + 2) // 3) * 4 + 8:
-        raise MCPServiceError("limit_exceeded", "Encoded archive exceeds the configured limit.", path="archive_base64")
+    effective_maximum = maximum_archive_bytes()
+    if len(archive_base64) > ((effective_maximum + 2) // 3) * 4:
+        raise MCPServiceError(
+            "limit_exceeded",
+            "Encoded archive exceeds the effective request limit.",
+            path="archive_base64",
+        )
     try:
         archive = base64.b64decode(archive_base64, validate=True)
     except (ValueError, binascii.Error) as exc:
         raise MCPServiceError("validation_error", "archive_base64 is invalid.", path="archive_base64") from exc
+    if len(archive) > effective_maximum:
+        raise MCPServiceError("limit_exceeded", "Archive exceeds the effective request limit.", path="archive_base64")
     decode_twitter_archive(archive)
     job = enqueue_job(
         client,

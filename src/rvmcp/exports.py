@@ -120,6 +120,22 @@ def _serialize_export(kind, record, client):
     return {"kind": kind, "record": value}
 
 
+def _load_bounded_snapshot_rows(queryset, loaded_count):
+    limit = settings.MCP_MAX_EXPORT_SNAPSHOT_RECORDS
+    remaining = limit - loaded_count
+    rows = list(queryset[: max(0, remaining) + 1])
+    if len(rows) > remaining:
+        raise MCPServiceError(
+            "limit_exceeded",
+            (
+                "Synchronous export exceeds the configured snapshot record limit; "
+                "submit an asynchronous NDJSON export instead."
+            ),
+            path="filters",
+        )
+    return rows, loaded_count + len(rows)
+
+
 def _materialize_export_snapshot(client, normalized, updated_after):
     domain_ids = normalized["domain_ids"]
     with transaction.atomic():
@@ -128,53 +144,53 @@ def _materialize_export_snapshot(client, normalized, updated_after):
         # media/links from entering the selected domains while their values are
         # materialized. Updates to existing rows are held until the snapshot is
         # complete, so later pages never query mutable source records.
-        domains = list(RVDomain.objects.select_for_update().filter(id__in=domain_ids).order_by("id"))
+        loaded_count = 0
+        domains, loaded_count = _load_bounded_snapshot_rows(
+            RVDomain.objects.select_for_update().filter(id__in=domain_ids).order_by("id"),
+            loaded_count,
+        )
         if connection.vendor == "sqlite":
             # SQLite ignores SELECT FOR UPDATE. Acquire its database write lock
             # before reading any mutable source rows so the materialization is
             # still internally consistent.
             RVDomain.objects.filter(id__in=domain_ids).update(revision=F("revision"))
         kinds = set(normalized["kinds"])
-        services = (
-            list(
+        services = []
+        if "services" in kinds:
+            services, loaded_count = _load_bounded_snapshot_rows(
                 RVService.objects.select_for_update()
                 .select_related("domain")
                 .filter(domain_id__in=domain_ids)
-                .order_by("id")
+                .order_by("id"),
+                loaded_count,
             )
-            if "services" in kinds
-            else []
-        )
-        items = (
-            list(
+        items = []
+        if kinds.intersection({"items", "media_manifest", "links"}):
+            items, loaded_count = _load_bounded_snapshot_rows(
                 RVItem.objects.select_for_update()
                 .select_related("domain", "service")
                 .filter(domain_id__in=domain_ids)
-                .order_by("id")
+                .order_by("id"),
+                loaded_count,
             )
-            if kinds.intersection({"items", "media_manifest", "links"})
-            else []
-        )
-        media = (
-            list(
+        media = []
+        if "media_manifest" in kinds:
+            media, loaded_count = _load_bounded_snapshot_rows(
                 RVMedia.objects.select_for_update()
                 .select_related("item", "item__domain")
                 .filter(item__domain_id__in=domain_ids)
-                .order_by("id")
+                .order_by("id"),
+                loaded_count,
             )
-            if "media_manifest" in kinds
-            else []
-        )
-        links = (
-            list(
+        links = []
+        if "links" in kinds:
+            links, loaded_count = _load_bounded_snapshot_rows(
                 RVLink.objects.select_for_update()
                 .select_related("item", "item__domain")
                 .filter(item__domain_id__in=domain_ids)
-                .order_by("id")
+                .order_by("id"),
+                loaded_count,
             )
-            if "links" in kinds
-            else []
-        )
         rows_by_kind = {
             "domains": domains,
             "services": services,

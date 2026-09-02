@@ -32,7 +32,13 @@ from .capabilities import (
 from .destruction import confirm_delete, preview_delete
 from .exports import export_json_page, submit_export
 from .jobs import run_one_job
-from .models import MCPAuditRecord, MCPClient, MCPDestructivePreview, MCPJob
+from .models import (
+    MCPAuditRecord,
+    MCPClient,
+    MCPDestructivePreview,
+    MCPExportSnapshot,
+    MCPJob,
+)
 from .services import MCPServiceError
 
 
@@ -310,6 +316,26 @@ class MCPCapabilityTests(TestCase):
         self.assertEqual(second["records"][0]["record"]["title"], "before snapshot")
         self.assertIsNone(second["next_cursor"])
 
+    @override_settings(MCP_MAX_EXPORT_SNAPSHOT_RECORDS=1)
+    def test_json_export_rejects_snapshots_above_the_synchronous_record_limit(self):
+        RVItem.objects.create(
+            service=self.service,
+            domain=self.domain,
+            item_id="item-2",
+            date_created="2025-01-02",
+            datetime_created="2025-01-02T00:00:00Z",
+        )
+
+        with self.assertRaises(MCPServiceError) as caught:
+            export_json_page(
+                self.client_record,
+                {"domain_ids": [self.domain.id], "kinds": ["items"]},
+                limit=1,
+            )
+
+        self.assertEqual(caught.exception.code, "limit_exceeded")
+        self.assertEqual(MCPExportSnapshot.objects.count(), 0)
+
     def test_async_export_creates_authenticated_checked_artifact(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(
             DATA_STORE=directory,
@@ -367,6 +393,63 @@ class MCPCapabilityTests(TestCase):
             with self.assertRaises(MCPServiceError) as caught:
                 import_twitter_archive(self.service, self.twitter_archive())
             self.assertEqual(caught.exception.code, "limit_exceeded")
+
+    def test_twitter_archive_reports_invalid_entity_containers_per_record(self):
+        archive = json.dumps(
+            [
+                {
+                    "tweet": {
+                        "id": "bad-entities",
+                        "created_at": "Wed Oct 10 20:19:24 +0000 2018",
+                        "full_text": "bad entity shape",
+                        "entities": [],
+                    }
+                },
+                {
+                    "tweet": {
+                        "id": "bad-extended-entities",
+                        "created_at": "Wed Oct 10 20:19:24 +0000 2018",
+                        "full_text": "bad extended entity shape",
+                        "entities": {},
+                        "extended_entities": None,
+                    }
+                },
+                {
+                    "tweet": {
+                        "id": "valid-after-bad",
+                        "created_at": "Wed Oct 10 20:19:24 +0000 2018",
+                        "full_text": "still imported",
+                        "entities": {},
+                    }
+                },
+            ]
+        )
+
+        result = import_twitter_archive(self.service, archive)
+
+        self.assertEqual(result["processed_count"], 1)
+        self.assertEqual(result["failed_count"], 2)
+        self.assertEqual(result["failures"][0]["code"], "validation_error")
+        self.assertEqual(result["failures"][1]["code"], "validation_error")
+        self.assertTrue(
+            RVItem.objects.filter(service=self.service, item_id="valid-after-bad").exists()
+        )
+
+    @override_settings(MCP_MAX_ARCHIVE_BYTES=220, MCP_MAX_REQUEST_BODY_BYTES=220)
+    def test_twitter_archive_reports_encoded_request_limit(self):
+        raw_archive = b"[]" + (b" " * 193)
+        archive_base64 = base64.b64encode(raw_archive).decode()
+
+        with self.assertRaises(MCPServiceError) as caught:
+            submit_twitter_archive(
+                self.client_record,
+                self.domain.id,
+                self.service.id,
+                archive_base64,
+            )
+
+        self.assertEqual(caught.exception.code, "limit_exceeded")
+        self.assertEqual(caught.exception.path, "archive_base64")
 
     @override_settings(ALLOWED_HOSTS=["archive.example"])
     @patch("rvadmin.views.import_twitter_archive")
@@ -437,6 +520,42 @@ class MCPCapabilityTests(TestCase):
             self.assertFalse(stored.exists())
             audit_record = MCPAuditRecord.objects.filter(operation="confirm_delete").latest("id")
             self.assertEqual(audit_record.details["cleanup_failures"], [])
+
+    def test_item_delete_rejects_poster_impact_outside_current_domain_grants(self):
+        self.other_domain.poster_image = self.item
+        self.other_domain.save(update_fields=["poster_image"])
+        original_revision = self.other_domain.revision
+
+        with self.assertRaises(MCPServiceError) as caught:
+            preview_delete(self.client_record, self.domain.id, "items", [self.item.id])
+
+        self.assertEqual(caught.exception.code, "not_found")
+        self.other_domain.refresh_from_db()
+        self.assertEqual(self.other_domain.poster_image_id, self.item.id)
+        self.assertEqual(self.other_domain.revision, original_revision)
+        self.assertTrue(RVItem.objects.filter(pk=self.item.id).exists())
+
+        self.client_record.domains.add(self.other_domain)
+        preview = preview_delete(
+            self.client_record,
+            self.domain.id,
+            "items",
+            [self.item.id],
+        )
+        self.client_record.domains.remove(self.other_domain)
+
+        with self.assertRaises(MCPServiceError) as caught:
+            confirm_delete(
+                self.client_record,
+                preview["id"],
+                preview["confirmation_token"],
+            )
+
+        self.assertEqual(caught.exception.code, "not_found")
+        self.other_domain.refresh_from_db()
+        self.assertEqual(self.other_domain.poster_image_id, self.item.id)
+        self.assertEqual(self.other_domain.revision, original_revision)
+        self.assertTrue(RVItem.objects.filter(pk=self.item.id).exists())
 
     @override_settings(MCP_DESTRUCTIVE_PREVIEW_TTL_SECONDS=1)
     def test_delete_preview_is_bounded_expiring_and_domain_scoped(self):

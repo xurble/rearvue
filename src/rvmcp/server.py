@@ -9,7 +9,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from rvsite.models import RVService
 
-from .archive_import import submit_twitter_archive
+from .archive_import import maximum_archive_bytes, submit_twitter_archive
 from .auth import current_client_id
 from .capabilities import (
     create_link,
@@ -135,6 +135,8 @@ async def discover() -> dict[str, Any]:
                 "maximum_bulk_items": settings.MCP_MAX_BULK_ITEMS,
                 "maximum_raw_data_bytes": settings.MCP_MAX_RAW_DATA_BYTES,
                 "maximum_request_body_bytes": settings.MCP_MAX_REQUEST_BODY_BYTES,
+                "maximum_archive_bytes": maximum_archive_bytes(),
+                "maximum_export_snapshot_records": settings.MCP_MAX_EXPORT_SNAPSHOT_RECORDS,
                 "idempotency_ttl_seconds": settings.MCP_IDEMPOTENCY_TTL_SECONDS,
                 "maximum_media_bytes": settings.MCP_MAX_MEDIA_BYTES,
                 "maximum_image_pixels": settings.MCP_MAX_IMAGE_PIXELS,

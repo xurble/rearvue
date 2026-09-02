@@ -535,7 +535,9 @@ class MCPTransportContractTests(MCPTestMixin, TransactionTestCase):
         structured = discovered.json()["result"]["structuredContent"]
         self.assertEqual(structured["contract_version"], "1.1")
         self.assertEqual(structured["available_scopes"], ["domain:owner"])
-        self.assertEqual(structured["limits"]["maximum_request_body_bytes"], 2 * 1024 * 1024)
+        self.assertEqual(structured["limits"]["maximum_request_body_bytes"], 3 * 1024 * 1024)
+        self.assertEqual(structured["limits"]["maximum_archive_bytes"], 2 * 1024 * 1024)
+        self.assertEqual(structured["limits"]["maximum_export_snapshot_records"], 10_000)
         self.assertEqual(structured["importers"], ["twitter_tweets_js"])
         self.assertEqual(structured["export_formats"], ["json", "ndjson"])
         self.assertTrue(structured["deletion"]["preview_required"])

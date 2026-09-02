@@ -24,7 +24,7 @@ MCP_DEFAULT_PAGE_SIZE = 50
 MCP_MAX_PAGE_SIZE = 100
 MCP_MAX_BULK_ITEMS = 100
 MCP_MAX_RAW_DATA_BYTES = 256 * 1024
-MCP_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024
+MCP_MAX_REQUEST_BODY_BYTES = 3 * 1024 * 1024
 MCP_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 MCP_GENERATED_ROOT = "/srv/rearvue/data/mcp-generated"
 MCP_MAX_JOB_ATTEMPTS = 3
@@ -39,6 +39,8 @@ MCP_MAX_LINK_RESPONSE_BYTES = 1024 * 1024
 MCP_MAX_ARCHIVE_BYTES = 2 * 1024 * 1024
 MCP_MAX_ARCHIVE_RECORDS = 10_000
 MCP_ARTIFACT_TTL_SECONDS = 24 * 60 * 60
+MCP_EXPORT_SNAPSHOT_TTL_SECONDS = 24 * 60 * 60
+MCP_MAX_EXPORT_SNAPSHOT_RECORDS = 10_000
 ```
 
 Run migrations, then create a client in Django admin under **RearVue MCP → MCP clients**. Choose scopes and domains. Leaving the token field blank generates a high-entropy token; copy the warning after saving because RearVue stores only its SHA-256 digest. Operators may instead supply a token matching `rvmcp_<8 lowercase hex characters>_<at least 32 URL-safe characters>`.
@@ -54,7 +56,7 @@ cd src
 The repository includes matching [production deployment examples](../deploy/README.md)
 for Cloudflare TLS, Nginx, systemd, Gunicorn, and Django settings. The Nginx MCP
 location preserves `Authorization`, disables proxy buffering and caching, and
-uses a two-MiB body limit matching the Django default. MCP responses also emit
+uses a three-MiB body limit matching the Django default. MCP responses also emit
 `Cache-Control: no-store` and `X-Accel-Buffering: no` from the application.
 
 Cloudflare must use Full (strict) mode so the Nginx hop is HTTPS. Its account-side
@@ -224,7 +226,7 @@ Media downloads use `/mcp-download/media/<id>/` and require the same bearer toke
 
 ## Exports
 
-`rearvue_v1_export_json` returns deterministic records ordered by record family and stable integer ID. Filters support `domain_ids`, `kinds`, and a timezone-aware `updated_after`. The first page materializes the normalized records under database locks; its opaque cursor binds that immutable server-side snapshot to the client and filters. Later source updates therefore cannot add, omit, or change records between pages. Snapshots expire after `MCP_EXPORT_SNAPSHOT_TTL_SECONDS` (24 hours by default), and completed or expired snapshots are removed. Families are domains, services, items, media manifests, and links. Media manifests contain authenticated download references, never stored paths. Service configuration, credentials, state, bearer tokens, Django users, settings, and signing material are excluded.
+`rearvue_v1_export_json` returns deterministic records ordered by record family and stable integer ID. Filters support `domain_ids`, `kinds`, and a timezone-aware `updated_after`. The first page materializes the normalized records under database locks; its opaque cursor binds that immutable server-side snapshot to the client and filters. Later source updates therefore cannot add, omit, or change records between pages. Snapshot creation reads and locks at most `MCP_MAX_EXPORT_SNAPSHOT_RECORDS` source rows, including parent rows needed to prevent dependent inserts; larger selections return `limit_exceeded` and must use the asynchronous NDJSON export. Snapshots expire after `MCP_EXPORT_SNAPSHOT_TTL_SECONDS` (24 hours by default), and completed or expired snapshots are removed. Families are domains, services, items, media manifests, and links. Media manifests contain authenticated download references, never stored paths. Service configuration, credentials, state, bearer tokens, Django users, settings, and signing material are excluded.
 
 `rearvue_v1_submit_export` creates a durable single-domain NDJSON job. The worker writes atomically under `MCP_GENERATED_ROOT/exports`, computes a SHA-256 checksum and byte size, records resumability metadata and expiry, and exposes `/mcp-download/jobs/<id>/` only to the client that submitted the job. ZIP packaging is not supported.
 
@@ -246,7 +248,7 @@ The registry does not accept module names, callables, management commands, SQL, 
 
 ## Twitter archive import
 
-`rearvue_v1_submit_twitter_archive` accepts a bounded base64-encoded Twitter `tweets.js` file for a Twitter service in a granted domain. The same `import_twitter_archive` application service is called by the MCP job and the existing admin upload. It validates the JavaScript wrapper, UTF-8, JSON shape, record count, tweet identity and timestamp; uses `(service, tweet id)` idempotency; HTML-escapes generated captions; stores canonical bounded JSON; reports per-record failures without content; and never attempts social login or archive download.
+`rearvue_v1_submit_twitter_archive` accepts a bounded base64-encoded Twitter `tweets.js` file for a Twitter service in a granted domain. The effective raw archive limit is the smaller of `MCP_MAX_ARCHIVE_BYTES` and the capacity that fits, after base64 expansion and reserved JSON-RPC envelope space, within `MCP_MAX_REQUEST_BODY_BYTES`; discovery reports that effective limit as `maximum_archive_bytes`. The same `import_twitter_archive` application service is called by the MCP job and the existing admin upload. It validates the JavaScript wrapper, UTF-8, JSON shape, record count, tweet identity, entity containers, and timestamp; uses `(service, tweet id)` idempotency; HTML-escapes generated captions; stores canonical bounded JSON; reports per-record failures without content; and never attempts social login or archive download.
 
 Example submission:
 
@@ -262,7 +264,7 @@ Service creation accepts only `domain_id`, `name`, supported `type`, `live`, and
 
 Deletion is limited to explicit item, media, or link IDs in one granted domain, with at most `MCP_MAX_DESTRUCTIVE_RECORDS` top-level records. `rearvue_v1_preview_delete` returns exact IDs/revisions, related item/media/link counts, poster impact, controlled-file count, a cryptographically random confirmation token, and an expiry. Only the SHA-256 token digest is stored.
 
-`rearvue_v1_confirm_delete` requires the same client, domain grant, unused token, and unexpired preview. It locks the preview, selected rows, parent items, dependent media/links, and affected poster domains before recomputing the complete impact and deleting. The parent locks also prevent new dependents from entering the confirmed impact. Any revision, relation, count, or poster change returns `impact_changed` and requires a new preview. A successful token is single-use. Database deletion is irreversible. Deleting a poster item clears the domain's poster reference instead of cascading to the domain.
+`rearvue_v1_confirm_delete` requires the same client, domain grant, unused token, and unexpired preview. It locks the preview, selected rows, parent items, dependent media/links, and affected poster domains before recomputing the complete impact and deleting. The parent locks also prevent new dependents from entering the confirmed impact. Preview and confirmation reject an item deletion if any affected poster domain is outside the client's current grants. Any revision, relation, count, or poster change returns `impact_changed` and requires a new preview. A successful token is single-use. Database deletion is irreversible. Deleting a poster item clears the domain's poster reference instead of cascading to the domain.
 
 Controlled generated files are deleted only after the database transaction commits. Cleanup never follows symlinks or removes files outside `MCP_GENERATED_ROOT`. Missing files are already clean; unsafe or failed cleanup is retained in the durable mutation audit as a sanitized failure code. Operators recover database content from their normal database backups and generated files from storage backups; RearVue provides no soft-delete or automatic recovery window.
 

@@ -102,11 +102,21 @@ def calculate_impact(domain_id, selector, *, lock=False):
     return impact
 
 
+def _require_impact_accessible(client, impact):
+    granted_domain_ids = set(accessible_domain_ids(client))
+    if not set(impact.get("poster_domain_ids", [])).issubset(granted_domain_ids):
+        raise MCPServiceError(
+            "not_found",
+            "One or more records affected by this deletion were not found.",
+        )
+
+
 def preview_delete(client, domain_id, resource, ids):
     require_scope(client, "domain:owner")
     domain = require_domain(client, domain_id)
     selector = _normalize_selector(resource, ids)
     impact = calculate_impact(domain.id, selector)
+    _require_impact_accessible(client, impact)
     token = secrets.token_urlsafe(32)
     preview = MCPDestructivePreview.objects.create(
         client=client,
@@ -182,6 +192,7 @@ def confirm_delete(client, preview_id, confirmation_token):
         # preview before comparing the impact. Locking items also blocks new
         # media/link foreign-key references until the delete commits.
         current_impact = calculate_impact(preview.domain_id, preview.selector, lock=True)
+        _require_impact_accessible(client, current_impact)
         if canonical_hash(current_impact) != preview.impact_hash or current_impact != preview.impact:
             audit(
                 client,
