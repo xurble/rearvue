@@ -288,8 +288,4 @@ def _mirror_twitter_media(item, media_data):
 
 
 def _write_media_content(local_path, content):
-    target_path = utils.make_full_path(local_path)
-    utils.make_folder(target_path)
-    with open(target_path, "wb") as output:
-        output.write(content)
-    return target_path
+    return utils.write_media_content(local_path, content)

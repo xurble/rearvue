@@ -246,12 +246,29 @@ def iter_user_media(access_token: str, user_id: str) -> Iterator[dict[str, Any]]
 
 
 def _download_binary(url: str) -> bytes:
-    safe = utils.validate_public_http_url(url)
-    if not safe:
-        raise ValueError("Blocked or invalid Instagram media URL")
-    ret = requests.get(safe, timeout=120, verify=True)
-    ret.raise_for_status()
-    return ret.content
+    response = utils.get_public_url(url, timeout=120, stream=True)
+    try:
+        response.raise_for_status()
+        declared = response.headers.get("Content-Length")
+        if declared:
+            try:
+                declared_size = int(declared)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Invalid Instagram media content length") from exc
+            if declared_size < 0 or declared_size > settings.MCP_MAX_MEDIA_BYTES:
+                raise ValueError("Instagram media exceeds the configured limit")
+        chunks = []
+        size = 0
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            size += len(chunk)
+            if size > settings.MCP_MAX_MEDIA_BYTES:
+                raise ValueError("Instagram media exceeds the configured limit")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        response.close()
 
 
 def _media_items_from_raw(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -308,10 +325,7 @@ def mirror_instagram(specific_item=None):
                     rvm.media_type = 1
                     output_path = rvm.make_original_path(ext)
                     rvm.save(update_fields=["media_type", "original_media"])
-                    target_path = utils.make_full_path(output_path)
-                    utils.make_folder(target_path)
-                    with open(target_path, "wb") as fh:
-                        fh.write(content)
+                    target_path = utils.write_media_content(output_path, content)
 
                     img = Image.open(target_path)
                     ratio = float(img.size[0]) / float(img.size[1])
@@ -328,20 +342,14 @@ def mirror_instagram(specific_item=None):
                     rvm.media_type = 2
                     output_path = rvm.make_original_path(ext)
                     rvm.save(update_fields=["media_type", "original_media"])
-                    target_path = utils.make_full_path(output_path)
-                    utils.make_folder(target_path)
-                    with open(target_path, "wb") as fh:
-                        fh.write(content)
+                    target_path = utils.write_media_content(output_path, content)
 
                     thumbnail_url = media_item.get("thumbnail_url")
                     if thumbnail_url:
                         tdata = _download_binary(thumbnail_url)
                         output_path = rvm.make_thumbnail_path("jpg")
                         rvm.save(update_fields=["thumbnail"])
-                        target_path = utils.make_full_path(output_path)
-                        utils.make_folder(target_path)
-                        with open(target_path, "wb") as fh:
-                            fh.write(tdata)
+                        target_path = utils.write_media_content(output_path, tdata)
                 else:
                     raise ValueError("Unsupported Instagram media type")
 

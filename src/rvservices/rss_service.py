@@ -154,10 +154,7 @@ def _mirror_rss_enclosure(item, enclosure):
     extension = enclosure.type.split("/")[-1]
     output_path = media.make_original_path(extension)
     media.save(update_fields=["original_media"])
-    target_path = utils.make_full_path(output_path)
-    utils.make_folder(target_path)
-    with open(target_path, "wb") as output:
-        output.write(response.content)
+    target_path = utils.write_media_content(output_path, response.content)
 
     if enclosure.type.startswith("image/"):
         media.media_type = 1

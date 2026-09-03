@@ -1,8 +1,8 @@
-# RearVue MCP server (contract v1)
+# RearVue MCP server (contract v1.1)
 
 RearVue exposes an optional authenticated Model Context Protocol server for normalized archive data. It uses stateless Streamable HTTP at `/mcp`, is disabled by default, and requires Django's ASGI entry point.
 
-This first contract slice supports discovery, granted domain and safe service reads, item retrieval/search, normalized item create/upsert/update, bounded bulk upsert, optimistic concurrency, idempotency, and mutation auditing. Media/link mutation, exports, jobs, archive submission, service mutation, processing, and deletion are deferred to [issue 90](https://github.com/xurble/rearvue/issues/90).
+Contract v1.1 keeps the `rearvue_v1_*` tool names while advancing the additive contract. It supports domain-scoped item, link, media, and service management; incremental and asynchronous export; durable named jobs; shared Twitter archive import; authenticated downloads; and preview-confirmed bounded deletion. It never exposes provider credentials, Django authentication data, signing secrets, arbitrary commands, or arbitrary filesystem paths.
 
 ## Setup and deployment
 
@@ -24,8 +24,23 @@ MCP_DEFAULT_PAGE_SIZE = 50
 MCP_MAX_PAGE_SIZE = 100
 MCP_MAX_BULK_ITEMS = 100
 MCP_MAX_RAW_DATA_BYTES = 256 * 1024
-MCP_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024
+MCP_MAX_REQUEST_BODY_BYTES = 3 * 1024 * 1024
 MCP_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
+MCP_GENERATED_ROOT = "/srv/rearvue/data/mcp-generated"
+MCP_MAX_JOB_ATTEMPTS = 3
+MCP_JOB_LEASE_SECONDS = 60
+MCP_JOB_RETRY_BASE_SECONDS = 5
+MCP_JOB_RESULT_MAX_BYTES = 256 * 1024
+MCP_DESTRUCTIVE_PREVIEW_TTL_SECONDS = 5 * 60
+MCP_MAX_DESTRUCTIVE_RECORDS = 100
+MCP_MAX_MEDIA_BYTES = 25 * 1024 * 1024
+MCP_MAX_IMAGE_PIXELS = 40_000_000
+MCP_MAX_LINK_RESPONSE_BYTES = 1024 * 1024
+MCP_MAX_ARCHIVE_BYTES = 2 * 1024 * 1024
+MCP_MAX_ARCHIVE_RECORDS = 10_000
+MCP_ARTIFACT_TTL_SECONDS = 24 * 60 * 60
+MCP_EXPORT_SNAPSHOT_TTL_SECONDS = 24 * 60 * 60
+MCP_MAX_EXPORT_SNAPSHOT_RECORDS = 10_000
 ```
 
 Run migrations, then create a client in Django admin under **RearVue MCP → MCP clients**. Choose scopes and domains. Leaving the token field blank generates a high-entropy token; copy the warning after saving because RearVue stores only its SHA-256 digest. Operators may instead supply a token matching `rvmcp_<8 lowercase hex characters>_<at least 32 URL-safe characters>`.
@@ -41,7 +56,7 @@ cd src
 The repository includes matching [production deployment examples](../deploy/README.md)
 for Cloudflare TLS, Nginx, systemd, Gunicorn, and Django settings. The Nginx MCP
 location preserves `Authorization`, disables proxy buffering and caching, and
-uses a two-MiB body limit matching the Django default. MCP responses also emit
+uses a three-MiB body limit matching the Django default. MCP responses also emit
 `Cache-Control: no-store` and `X-Accel-Buffering: no` from the application.
 
 Cloudflare must use Full (strict) mode so the Nginx hop is HTTPS. Its account-side
@@ -67,13 +82,7 @@ The endpoint returns 404 while disabled, 401 for missing/invalid/expired/disable
 
 ## Authorization
 
-Every request is authenticated. Domain grants and scopes are independent and both are enforced:
-
-- `domains:read`: list and retrieve granted domain metadata.
-- `services:read`: list and retrieve services in granted domains.
-- `items:read`: retrieve and search items in granted domains.
-- `items:raw`: include parsed `raw_data` in item results; it has no effect without item access.
-- `items:write`: create, upsert, and update items through granted services.
+Every request is authenticated. The single `domain:owner` capability and explicit domain grants are independent and both are enforced. Migration to v1.1 replaces every existing client's legacy granular scopes with `domain:owner` while preserving its domain grants.
 
 An inaccessible or nonexistent domain, service, or item returns the same `not_found` error to prevent identifier probing. Service responses never include legacy `config`, `credentials`, or `state` documents.
 
@@ -92,6 +101,13 @@ Tool names carry the contract major version:
 - `rearvue_v1_upsert_item`
 - `rearvue_v1_update_item`
 - `rearvue_v1_bulk_upsert_items`
+- `rearvue_v1_list_links`, `rearvue_v1_get_link`, `rearvue_v1_create_link`, `rearvue_v1_update_link`
+- `rearvue_v1_list_media`, `rearvue_v1_get_media`, `rearvue_v1_create_media`, `rearvue_v1_update_media`
+- `rearvue_v1_create_service`, `rearvue_v1_update_service`
+- `rearvue_v1_list_jobs`, `rearvue_v1_get_job`, `rearvue_v1_submit_processing`
+- `rearvue_v1_export_json`, `rearvue_v1_submit_export`
+- `rearvue_v1_submit_twitter_archive`
+- `rearvue_v1_preview_delete`, `rearvue_v1_confirm_delete`
 
 `rearvue_v1_discover` reports versions, the caller's grants, limits, identity/update semantics, caption policy, current media/link support, importers, and export formats. MCP's `tools/list` publishes exact JSON schemas from the tool signatures.
 
@@ -109,7 +125,7 @@ Expected application failures are structured and do not leak tracebacks:
 }
 ```
 
-Stable codes include `validation_error`, `limit_exceeded`, `forbidden`, `not_found`, `identity_conflict`, `expected_revision_required`, `revision_conflict`, `idempotency_conflict`, `invalid_cursor`, and `internal_error`.
+Stable codes include `validation_error`, `limit_exceeded`, `forbidden`, `not_found`, `unsafe_url`, `unsafe_path`, `unsupported_media`, `identity_conflict`, `expected_revision_required`, `revision_conflict`, `idempotency_conflict`, `invalid_cursor`, `invalid_confirmation`, `confirmation_used`, `confirmation_expired`, `impact_changed`, and `internal_error`.
 
 ## Normalized item writes
 
@@ -136,7 +152,7 @@ Create example:
 
 Client-writable fields are `datetime_created`, `remote_url`, `title`, `caption`, `caption_format`, `public`, `moderated`, `edited`, and `raw_data`. `service_id` and `item_id` are supplied during creation and immutable afterward. RearVue derives `domain`, `date_created`, `date_retrieved`, and `slug`; `mirror_state` is server-managed.
 
-`raw_data` must be JSON and is stored canonically. Its encoded UTF-8 size is capped by `MCP_MAX_RAW_DATA_BYTES`. It is omitted from responses unless the caller has `items:raw`. Invalid legacy payloads are returned as `null` with a warning rather than exposed as arbitrary text.
+`raw_data` must be JSON and is stored canonically. Its encoded UTF-8 size is capped by `MCP_MAX_RAW_DATA_BYTES`. It is available to callers with `domain:owner`. Invalid legacy payloads are returned as `null` with a warning rather than exposed as arbitrary text.
 
 ### Caption safety
 
@@ -190,8 +206,91 @@ Example:
 }
 ```
 
-Media expansion contains only record ID, numeric type, general medium, and inferred MIME type; it never returns filesystem paths. Link expansion returns authorized archive link metadata. Both are read-only in contract v1.
+Media expansion contains only record ID, numeric type, general medium, inferred MIME type, revision, update timestamp, and an authenticated download reference; it never returns filesystem paths. Link expansion returns authorized archive link metadata plus revision information.
+
+## Links and media
+
+Link and media list/get/create/update tools enforce both `domain:owner` and the caller's explicit domain grants. Updates require `expected_revision`. Link URLs must be public HTTP(S) destinations; private, loopback, link-local, reserved, multicast, `.local`, and cloud-metadata destinations are rejected before enrichment, and every redirect target is revalidated. Each request connects directly to an address from the validated public resolution while preserving the original HTTP Host and TLS SNI/certificate hostname, preventing a second DNS lookup from rebinding the connection to a private address.
+
+Media creation and replacement accept exactly one of `content_base64` or `source_url`. Remote downloads are streamed and stopped at `MCP_MAX_MEDIA_BYTES`. JPEG, PNG, WebP, GIF, and MP4 are recognized by content signature rather than filename or declared content type. Images are decoded and verified with Pillow and bounded by `MCP_MAX_IMAGE_PIXELS`; corrupt or mismatched content is rejected. Writes use a private temporary file, flush and `fsync`, then atomically replace a random generated filename.
+
+Generated media must live under `MCP_GENERATED_ROOT`, and that root must itself be contained by `DATA_STORE`. Resolution rejects symlink roots, symlink files, non-regular files, traversal, and files outside controlled storage. Replacement deletes the previous controlled file only after the database transaction commits.
+
+Example media creation arguments:
+
+```json
+{"media": {"item_id": 42, "source_url": "https://cdn.example/photo.webp"}}
+```
+
+Media downloads use `/mcp-download/media/<id>/` and require the same bearer token and domain grant as MCP. Responses are attachments with `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. No client-supplied path is ever resolved.
+
+## Exports
+
+`rearvue_v1_export_json` returns deterministic records ordered by record family and stable integer ID. Filters support `domain_ids`, `kinds`, and a timezone-aware `updated_after`. The first page materializes the normalized records under database locks; its opaque cursor binds that immutable server-side snapshot to the client and filters. Later source updates therefore cannot add, omit, or change records between pages. Snapshot creation reads and locks at most `MCP_MAX_EXPORT_SNAPSHOT_RECORDS` source rows, including parent rows needed to prevent dependent inserts; larger selections return `limit_exceeded` and must use the asynchronous NDJSON export. Snapshots expire after `MCP_EXPORT_SNAPSHOT_TTL_SECONDS` (24 hours by default), and completed or expired snapshots are removed. Families are domains, services, items, media manifests, and links. Media manifests contain authenticated download references, never stored paths. Service configuration, credentials, state, bearer tokens, Django users, settings, and signing material are excluded.
+
+`rearvue_v1_submit_export` creates a durable single-domain NDJSON job. The worker writes atomically under `MCP_GENERATED_ROOT/exports`, computes a SHA-256 checksum and byte size, records resumability metadata and expiry, and exposes `/mcp-download/jobs/<id>/` only to the client that submitted the job. ZIP packaging is not supported.
+
+Example incremental export:
+
+```json
+{"filters": {"domain_ids": [3], "kinds": ["items", "media_manifest"], "updated_after": "2026-01-01T00:00:00+00:00"}, "limit": 100}
+```
+
+## Jobs and named processing
+
+`rearvue_v1_list_jobs` and `rearvue_v1_get_job` expose progress, attempts, warnings, sanitized failures, terminal results, and safe artifact metadata; submitted payloads are deliberately omitted. `rearvue_v1_submit_processing` accepts only these named operations:
+
+- `domain_metadata_refresh`, with no selector;
+- `media_mirror`, with a bounded `item_ids` selector inside one granted domain;
+- `link_enrichment`, with a bounded `link_ids` selector inside one granted domain.
+
+The registry does not accept module names, callables, management commands, SQL, Python, shell, or paths. Selector IDs are rechecked against the job domain before execution. Link enrichment downloads only bounded public HTML and stores bounded title, description, and a separately validated public Open Graph image URL.
+
+## Twitter archive import
+
+`rearvue_v1_submit_twitter_archive` accepts a bounded base64-encoded Twitter `tweets.js` file for a Twitter service in a granted domain. The effective raw archive limit is the smaller of `MCP_MAX_ARCHIVE_BYTES` and the capacity that fits, after base64 expansion and reserved JSON-RPC envelope space, within `MCP_MAX_REQUEST_BODY_BYTES`; discovery reports that effective limit as `maximum_archive_bytes`. The same `import_twitter_archive` application service is called by the MCP job and the existing admin upload. It validates the JavaScript wrapper, UTF-8, JSON shape, record count, tweet identity, entity containers, and timestamp; uses `(service, tweet id)` idempotency; HTML-escapes generated captions; stores canonical bounded JSON; reports per-record failures without content; and never attempts social login or archive download.
+
+Example submission:
+
+```json
+{"domain_id": 3, "service_id": 7, "archive_base64": "d2luZG93LllURC50d2VldHMuLi4="}
+```
+
+## Service management
+
+Service creation accepts only `domain_id`, `name`, supported `type`, `live`, and `hide_unmoderated`. Updates require `expected_revision` and accept only `name`, `live`, and `hide_unmoderated`; type is immutable. `config`, `credentials`, and `state` are neither accepted nor returned. Service deletion is not exposed.
+
+## Preview-confirmed deletion and recovery
+
+Deletion is limited to explicit item, media, or link IDs in one granted domain, with at most `MCP_MAX_DESTRUCTIVE_RECORDS` top-level records. `rearvue_v1_preview_delete` returns exact IDs/revisions, related item/media/link counts, poster impact, controlled-file count, a cryptographically random confirmation token, and an expiry. Only the SHA-256 token digest is stored.
+
+`rearvue_v1_confirm_delete` requires the same client, domain grant, unused token, and unexpired preview. It locks the preview, selected rows, parent items, dependent media/links, and affected poster domains before recomputing the complete impact and deleting. The parent locks also prevent new dependents from entering the confirmed impact. Preview and confirmation reject an item deletion if any affected poster domain is outside the client's current grants. Any revision, relation, count, or poster change returns `impact_changed` and requires a new preview. A successful token is single-use. Database deletion is irreversible. Deleting a poster item clears the domain's poster reference instead of cascading to the domain.
+
+Controlled generated files are deleted only after the database transaction commits. Cleanup never follows symlinks or removes files outside `MCP_GENERATED_ROOT`. Missing files are already clean; unsafe or failed cleanup is retained in the durable mutation audit as a sanitized failure code. Operators recover database content from their normal database backups and generated files from storage backups; RearVue provides no soft-delete or automatic recovery window.
+
+Example flow:
+
+```json
+{"domain_id": 3, "resource": "media", "ids": [81, 82]}
+```
+
+Pass the returned `preview.id` and `confirmation_token` unchanged to `rearvue_v1_confirm_delete` within five minutes.
+
+## Durable worker foundation
+
+Run at least one separate database-backed worker process in production:
+
+```shell
+cd src
+python manage.py run_mcp_jobs
+```
+
+For supervised or batch execution, `--max-jobs N` exits after processing up to `N` jobs. `--once` performs one claim attempt, and `--worker-id` supplies a stable operator-visible identity. Polling is bounded by `--poll-interval`, which accepts 0.05–60 seconds.
+
+Jobs store their operation name, domain/client ownership, bounded JSON payload and result, progress, warnings/failures, attempts, lease, heartbeat, terminal timestamps, and controlled artifact metadata. Claims use a guarded database update, so a queued job can be won only once. Before side effects, and again on every heartbeat, workers verify that the client remains enabled and unexpired, still has `domain:owner`, and still holds the domain grant; revoked jobs fail terminally with `authorization_revoked`. A dedicated lease-renewal thread heartbeats independently while a handler is blocked in provider or filesystem work. A later worker recovers genuinely expired leases, retries with bounded exponential backoff, and records a terminal `lease_expired` result after the attempt limit.
+
+The worker dispatches only names present in the in-process operation registry; stored payloads can never select a Python callable, management command, shell command, SQL statement, or filesystem path. Registered operations cover domain metadata refresh, bounded media mirroring, bounded link enrichment, NDJSON export, and Twitter archive import.
 
 ## Auditing
 
-Create, upsert, update, and bulk operations write audit records containing client, domain where singular, operation, affected IDs/count, timestamp, outcome, idempotency key where applicable, and non-sensitive counts/codes. Audit records exclude bearer tokens, raw payloads, captions, credentials, and settings. They are read-only in admin and are not exposed as an MCP tool in this slice.
+Create, upsert, update, bulk, job submission, export, preview, and confirmed deletion operations write audit records containing client, domain where singular, operation, affected IDs/count, timestamp, outcome, idempotency key where applicable, and non-sensitive counts/codes. Confirmed deletion also retains its exact impact and post-commit cleanup failure codes. Audit records exclude bearer tokens, confirmation tokens, raw payloads, captions, credentials, archive content, paths, and settings. They are read-only in admin and are not exposed as an MCP tool.

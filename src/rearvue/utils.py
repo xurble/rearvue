@@ -1,16 +1,19 @@
 
-from datetime import datetime
 import ipaddress
 import logging
 import os
 import random
 import socket
-from urllib.parse import urlparse, urljoin
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import urljoin, urlparse, urlunparse
 
+import requests
 from bs4 import BeautifulSoup
 from django.conf import settings
-from django.http import HttpResponseNotFound, HttpResponseForbidden
-import requests
+from django.http import HttpResponseForbidden, HttpResponseNotFound
+from requests.adapters import HTTPAdapter
 from webpreview import webpreview
 
 from rvsite.models import RVDomain, RVLink
@@ -30,8 +33,9 @@ BLOCKED_HOSTNAMES = frozenset({
 
 
 def _ip_is_public_safe(ip):
-    return not (
-        ip.is_private
+    return ip.is_global and not (
+        getattr(ip, "is_site_local", False)
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_multicast
@@ -40,20 +44,30 @@ def _ip_is_public_safe(ip):
     )
 
 
-def _resolve_host_is_public(host):
+def _resolve_public_addresses(host, port=None):
     try:
-        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        return (str(literal),) if _ip_is_public_safe(literal) else ()
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError:
-        return False
+        return ()
+    addresses = []
     for info in infos:
         ip_str = info[4][0]
         try:
             ip = ipaddress.ip_address(ip_str)
         except ValueError:
-            continue
+            return ()
         if not _ip_is_public_safe(ip):
-            return False
-    return bool(infos)
+            return ()
+        normalized = str(ip)
+        if normalized not in addresses:
+            addresses.append(normalized)
+    return tuple(addresses)
 
 
 def validate_public_http_url(url):
@@ -69,10 +83,16 @@ def validate_public_http_url(url):
     host = parsed.hostname
     if not host:
         return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
     lh = host.lower().rstrip(".")
     if lh in BLOCKED_HOSTNAMES:
         return None
-    if lh.endswith(".local") or lh.endswith(".localhost"):
+    if lh.endswith((".local", ".localhost")):
         return None
     try:
         ip = ipaddress.ip_address(host)
@@ -81,24 +101,97 @@ def validate_public_http_url(url):
         return parsed.geturl()
     except ValueError:
         pass
-    if not _resolve_host_is_public(host):
+    if not _resolve_public_addresses(host, port):
         return None
     return parsed.geturl()
 
 
-def get_public_url(url, *, timeout=30, headers=None):
+class _PinnedHTTPSAdapter(HTTPAdapter):
+    def __init__(self, server_hostname):
+        self.server_hostname = server_hostname
+        super().__init__()
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        pool_kwargs["assert_hostname"] = self.server_hostname
+        pool_kwargs["server_hostname"] = self.server_hostname
+        return super().init_poolmanager(
+            connections,
+            maxsize,
+            block=block,
+            **pool_kwargs,
+        )
+
+
+def _request_pinned_public_url(url, *, timeout, headers, stream):
+    parsed = urlparse(url)
+    hostname = parsed.hostname.rstrip(".")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    addresses = _resolve_public_addresses(hostname, port)
+    if not addresses:
+        raise ValueError("URL host does not resolve exclusively to public addresses")
+
+    address = addresses[0]
+    address_host = f"[{address}]" if ":" in address else address
+    address_netloc = address_host
+    if parsed.port is not None:
+        address_netloc = f"{address_netloc}:{parsed.port}"
+    pinned_url = urlunparse(
+        (parsed.scheme, address_netloc, parsed.path or "/", "", parsed.query, "")
+    )
+
+    tls_hostname = hostname.encode("idna").decode("ascii")
+    host_header = f"[{hostname}]" if ":" in hostname else hostname
+    if parsed.port is not None:
+        host_header = f"{host_header}:{parsed.port}"
+    request_headers = {
+        key: value
+        for key, value in (headers or {}).items()
+        if key.lower() != "host"
+    }
+    request_headers["Host"] = host_header
+
+    session = requests.Session()
+    session.trust_env = False
+    if parsed.scheme == "https":
+        session.mount("https://", _PinnedHTTPSAdapter(tls_hostname))
+    try:
+        response = session.get(
+            pinned_url,
+            timeout=timeout,
+            verify=True,
+            allow_redirects=False,
+            headers=request_headers,
+            stream=stream,
+        )
+    except Exception:
+        session.close()
+        raise
+
+    original_close = response.close
+
+    def close_response():
+        try:
+            original_close()
+        finally:
+            session.close()
+
+    response.close = close_response
+    response.url = url
+    return response
+
+
+def get_public_url(url, *, timeout=30, headers=None, stream=False):
     """Fetch a public HTTP(S) URL while validating every redirect target."""
     current = validate_public_http_url(url)
     if not current:
         raise ValueError("URL scheme or host is not allowed")
 
     for _ in range(MAX_REDIRECT_HOPS):
-        response = requests.get(
+        response = _request_pinned_public_url(
             current,
             timeout=timeout,
-            verify=True,
-            allow_redirects=False,
             headers=headers,
+            stream=stream,
         )
         if response.status_code not in REDIRECT_STATUSES:
             return response
@@ -106,6 +199,9 @@ def get_public_url(url, *, timeout=30, headers=None):
         location = response.headers.get("Location")
         if not location:
             return response
+        close_response = getattr(response, "close", None)
+        if close_response is not None:
+            close_response()
         current = validate_public_http_url(urljoin(current, location))
         if not current:
             raise ValueError("Redirect led to a URL that is not allowed")
@@ -124,6 +220,56 @@ def make_folder(full_path_to_file):
 
     if not os.path.exists(folder):
         os.makedirs(folder)
+
+
+def controlled_media_storage_path(local_path):
+    """Resolve a legacy provider media path inside DATA_STORE/media."""
+    data_root = Path(settings.DATA_STORE).resolve()
+    media_root_path = data_root / "media"
+    if media_root_path.exists() and media_root_path.is_symlink():
+        raise ValueError("Media storage root may not be a symlink")
+    media_root_path.mkdir(parents=True, exist_ok=True)
+    media_root = media_root_path.resolve()
+    try:
+        media_root.relative_to(data_root)
+    except ValueError as exc:
+        raise ValueError("Media storage root must be inside DATA_STORE") from exc
+
+    candidate = data_root / local_path
+    if candidate.name in {"", ".", ".."}:
+        raise ValueError("Media destination must name a file")
+    if candidate.exists() and candidate.is_symlink():
+        raise ValueError("Media destination may not be a symlink")
+    resolved_parent = candidate.parent.resolve()
+    try:
+        resolved_parent.relative_to(media_root)
+    except ValueError as exc:
+        raise ValueError("Media destination must be inside DATA_STORE/media") from exc
+    resolved_parent.mkdir(parents=True, exist_ok=True)
+    return resolved_parent / candidate.name
+
+
+def write_media_content(local_path, content):
+    """Atomically write provider media to controlled legacy storage."""
+    destination = controlled_media_storage_path(local_path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=destination.parent,
+            prefix=".media-",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            os.chmod(temporary, 0o600)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    except Exception:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+    return str(destination)
 
 
 def _resolve_domain(host_header):
