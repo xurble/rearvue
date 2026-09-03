@@ -159,7 +159,7 @@ def _cleanup_after_delete(audit_id, stored_paths):
         record.save(update_fields=["details"])
 
 
-def confirm_delete(client, preview_id, confirmation_token):
+def _confirm_delete_transactional(client, preview_id, confirmation_token):
     require_scope(client, "domain:owner")
     if not isinstance(confirmation_token, str) or not confirmation_token:
         raise MCPServiceError("validation_error", "confirmation_token is required.", path="confirmation_token")
@@ -176,13 +176,6 @@ def confirm_delete(client, preview_id, confirmation_token):
         if preview.expires_at <= timezone.now():
             raise MCPServiceError("confirmation_expired", "Confirmation token has expired.")
         if not hmac.compare_digest(preview.token_hash, _token_hash(confirmation_token)):
-            audit(
-                client,
-                "confirm_delete",
-                MCPAuditRecord.Outcome.FAILURE,
-                domain=preview.domain,
-                details={"code": "invalid_confirmation", "preview_id": preview.id},
-            )
             raise MCPServiceError("invalid_confirmation", "Confirmation token is invalid.")
         # SQLite has no row-level SELECT FOR UPDATE. A no-op write acquires its
         # database write lock before impact revalidation; row-locking databases
@@ -194,14 +187,6 @@ def confirm_delete(client, preview_id, confirmation_token):
         current_impact = calculate_impact(preview.domain_id, preview.selector, lock=True)
         _require_impact_accessible(client, current_impact)
         if canonical_hash(current_impact) != preview.impact_hash or current_impact != preview.impact:
-            audit(
-                client,
-                "confirm_delete",
-                MCPAuditRecord.Outcome.CONFLICT,
-                domain=preview.domain,
-                ids=preview.selector["ids"],
-                details={"code": "impact_changed", "preview_id": preview.id},
-            )
             raise MCPServiceError("impact_changed", "Deletion impact changed; create a new preview.")
 
         resource = preview.selector["resource"]
@@ -249,3 +234,34 @@ def confirm_delete(client, preview_id, confirmation_token):
         "impact": current_impact,
         "irreversible": True,
     }
+
+
+def confirm_delete(client, preview_id, confirmation_token):
+    try:
+        return _confirm_delete_transactional(client, preview_id, confirmation_token)
+    except MCPServiceError as exc:
+        outcomes = {
+            "invalid_confirmation": MCPAuditRecord.Outcome.FAILURE,
+            "impact_changed": MCPAuditRecord.Outcome.CONFLICT,
+        }
+        outcome = outcomes.get(exc.code)
+        if outcome is not None:
+            preview = (
+                MCPDestructivePreview.objects.select_related("domain")
+                .filter(
+                    pk=preview_id,
+                    client=client,
+                    domain_id__in=accessible_domain_ids(client),
+                )
+                .first()
+            )
+            if preview is not None:
+                audit(
+                    client,
+                    "confirm_delete",
+                    outcome,
+                    domain=preview.domain,
+                    ids=preview.selector["ids"] if exc.code == "impact_changed" else None,
+                    details={"code": exc.code, "preview_id": preview.id},
+                )
+        raise

@@ -394,12 +394,17 @@ def _write_media_file(media, content, extension):
 def controlled_media_path(media):
     if not media.original_media:
         raise MCPServiceError("not_found", "Media file is not available.")
-    root, data_root = _generated_root()
+    generated_root, data_root = _generated_root()
+    legacy_root_path = data_root / "media"
+    if legacy_root_path.exists() and legacy_root_path.is_symlink():
+        raise MCPServiceError("unsafe_path", "Legacy media storage root may not be a symlink.")
+    legacy_root = legacy_root_path.resolve()
     candidate = data_root / media.original_media
     if candidate.is_symlink():
         raise MCPServiceError("unsafe_path", "Media path is unsafe.")
     resolved = candidate.resolve(strict=True)
-    if root not in resolved.parents or not resolved.is_file():
+    controlled_roots = (generated_root, legacy_root)
+    if not any(root == resolved or root in resolved.parents for root in controlled_roots) or not resolved.is_file():
         raise MCPServiceError("unsafe_path", "Media path is outside controlled storage.")
     return resolved
 

@@ -5,11 +5,24 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 
-from rearvue.utils import admin_page, get_public_url, page
+from rearvue.utils import admin_page, get_public_url, page, validate_public_http_url
 from rvsite.models import RVDomain, RVItem, RVLink, RVService
 
 
 class PublicUrlTests(SimpleTestCase):
+    def test_validate_public_http_url_rejects_non_global_address_ranges(self):
+        self.assertIsNone(validate_public_http_url("http://100.64.0.1/resource"))
+        self.assertIsNone(validate_public_http_url("http://100.100.100.100/resource"))
+        self.assertIsNone(validate_public_http_url("http://[fec0::1]/resource"))
+
+    @patch("rearvue.utils.socket.getaddrinfo")
+    def test_validate_public_http_url_rejects_dns_resolving_to_cgnat(self, getaddrinfo):
+        getaddrinfo.return_value = [
+            (2, 1, 6, "", ("100.64.0.1", 443)),
+        ]
+
+        self.assertIsNone(validate_public_http_url("https://example.com/resource"))
+
     @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
     @patch("rearvue.utils._request_pinned_public_url")
     def test_get_public_url_validates_redirect_target(self, request_url, _resolve):

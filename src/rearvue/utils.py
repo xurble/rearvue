@@ -4,7 +4,9 @@ import logging
 import os
 import random
 import socket
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
@@ -31,8 +33,9 @@ BLOCKED_HOSTNAMES = frozenset({
 
 
 def _ip_is_public_safe(ip):
-    return not (
-        ip.is_private
+    return ip.is_global and not (
+        getattr(ip, "is_site_local", False)
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_multicast
@@ -217,6 +220,56 @@ def make_folder(full_path_to_file):
 
     if not os.path.exists(folder):
         os.makedirs(folder)
+
+
+def controlled_media_storage_path(local_path):
+    """Resolve a legacy provider media path inside DATA_STORE/media."""
+    data_root = Path(settings.DATA_STORE).resolve()
+    media_root_path = data_root / "media"
+    if media_root_path.exists() and media_root_path.is_symlink():
+        raise ValueError("Media storage root may not be a symlink")
+    media_root_path.mkdir(parents=True, exist_ok=True)
+    media_root = media_root_path.resolve()
+    try:
+        media_root.relative_to(data_root)
+    except ValueError as exc:
+        raise ValueError("Media storage root must be inside DATA_STORE") from exc
+
+    candidate = data_root / local_path
+    if candidate.name in {"", ".", ".."}:
+        raise ValueError("Media destination must name a file")
+    if candidate.exists() and candidate.is_symlink():
+        raise ValueError("Media destination may not be a symlink")
+    resolved_parent = candidate.parent.resolve()
+    try:
+        resolved_parent.relative_to(media_root)
+    except ValueError as exc:
+        raise ValueError("Media destination must be inside DATA_STORE/media") from exc
+    resolved_parent.mkdir(parents=True, exist_ok=True)
+    return resolved_parent / candidate.name
+
+
+def write_media_content(local_path, content):
+    """Atomically write provider media to controlled legacy storage."""
+    destination = controlled_media_storage_path(local_path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=destination.parent,
+            prefix=".media-",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            os.chmod(temporary, 0o600)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    except Exception:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+    return str(destination)
 
 
 def _resolve_domain(host_header):

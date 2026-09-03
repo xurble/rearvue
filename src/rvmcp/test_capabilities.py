@@ -136,6 +136,30 @@ class MCPCapabilityTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(b"".join(response.streaming_content).startswith(b"\x89PNG"))
 
+    def test_authenticated_download_allows_controlled_legacy_provider_media(self):
+        with tempfile.TemporaryDirectory() as directory, override_settings(
+            DATA_STORE=directory,
+            MCP_GENERATED_ROOT=str(Path(directory) / "mcp-generated"),
+        ):
+            relative_path = "media/archive.example/2025/01/01/twitter_1_o.jpg"
+            stored = Path(directory) / relative_path
+            stored.parent.mkdir(parents=True)
+            stored.write_bytes(b"legacy-provider-media")
+            media = RVMedia.objects.create(
+                item=self.item,
+                original_media=relative_path,
+                primary_media=relative_path,
+                media_type=1,
+            )
+
+            response = self.client.get(
+                f"/mcp-download/media/{media.id}/",
+                HTTP_AUTHORIZATION=f"Bearer {self.token}",
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(b"".join(response.streaming_content), b"legacy-provider-media")
+
     def test_media_rejects_unsupported_content_and_other_domain(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(
             DATA_STORE=directory,
@@ -336,7 +360,8 @@ class MCPCapabilityTests(TestCase):
         self.assertEqual(caught.exception.code, "limit_exceeded")
         self.assertEqual(MCPExportSnapshot.objects.count(), 0)
 
-    def test_async_export_creates_authenticated_checked_artifact(self):
+    @override_settings(MCP_MAX_EXPORT_SNAPSHOT_RECORDS=1)
+    def test_async_export_creates_authenticated_checked_artifact_above_sync_cap(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(
             DATA_STORE=directory,
             MCP_GENERATED_ROOT=str(Path(directory) / "mcp-generated"),
@@ -346,6 +371,7 @@ class MCPCapabilityTests(TestCase):
             job.refresh_from_db()
             self.assertEqual(job.status, MCPJob.Status.SUCCEEDED)
             self.assertTrue(job.artifact_sha256)
+            self.assertGreater(job.result["record_count"], 1)
             response = self.client.get(
                 f"/mcp-download/jobs/{job.id}/",
                 HTTP_AUTHORIZATION=f"Bearer {self.token}",
@@ -471,12 +497,85 @@ class MCPCapabilityTests(TestCase):
         self.assertEqual(called_service, self.service)
         self.assertTrue(called_archive.startswith(b"window.YTD.tweets.part0"))
 
+    @override_settings(ALLOWED_HOSTS=["archive.example"], MCP_MAX_ARCHIVE_BYTES=4)
+    @patch("rvadmin.views.import_twitter_archive")
+    def test_admin_twitter_upload_rejects_declared_oversize_before_import(self, shared_import):
+        self.client.force_login(self.user)
+        archive = SimpleUploadedFile("tweets.js", b"12345", content_type="text/javascript")
+
+        response = self.client.post(
+            f"/rvadmin/twitter_connect/{self.service.id}/",
+            {"action": "archive", "archive": archive},
+            HTTP_HOST=self.domain.name,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        shared_import.assert_not_called()
+
+    @override_settings(MCP_MAX_ARCHIVE_BYTES=4)
+    def test_admin_twitter_upload_reads_at_most_limit_plus_one(self):
+        from rvadmin.views import _read_twitter_archive_upload
+
+        upload = Mock(size=4)
+        upload.read.return_value = b"1234"
+
+        self.assertEqual(_read_twitter_archive_upload(upload), b"1234")
+        upload.read.assert_called_once_with(5)
+
+    @patch("rvservices.twitter_service.utils.get_public_url")
+    def test_media_mirror_rejects_twitter_content_type_path_traversal(self, get_public_url):
+        response = Mock(content=b"attacker-content")
+        self.item.raw_data = json.dumps(
+            {
+                "entities": {
+                    "media": [
+                        {
+                            "type": "video",
+                            "media_url_https": "https://example.com/thumb.jpg",
+                            "video_info": {
+                                "variants": [
+                                    {
+                                        "bitrate": 1000,
+                                        "content_type": "video/../../../../../../../escape/proof.bin",
+                                        "url": "https://example.com/video",
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                }
+            }
+        )
+        self.item.save(update_fields=["raw_data"])
+        get_public_url.return_value = response
+
+        with tempfile.TemporaryDirectory() as directory, override_settings(
+            DATA_STORE=str(Path(directory) / "data"),
+            MCP_GENERATED_ROOT=str(Path(directory) / "data" / "mcp-generated"),
+        ):
+            job = submit_processing_job(
+                self.client_record,
+                self.domain.id,
+                "media_mirror",
+                {"item_ids": [self.item.id]},
+            )
+            self.assertTrue(run_one_job("mirror-worker"))
+            job.refresh_from_db()
+
+            self.assertEqual(job.status, MCPJob.Status.SUCCEEDED)
+            self.assertEqual(job.result["failed"], 1)
+            self.assertFalse((Path(directory) / "escape" / "proof.bin").exists())
+            self.assertFalse(RVMedia.objects.filter(item=self.item).exists())
+
     def test_confirmed_delete_is_single_use_and_revalidates_impact(self):
         link = RVLink.objects.create(item=self.item, url="https://example.com")
         preview = preview_delete(self.client_record, self.domain.id, "links", [link.id])
         with self.assertRaises(MCPServiceError) as caught:
             confirm_delete(self.client_record, preview["id"], "wrong")
         self.assertEqual(caught.exception.code, "invalid_confirmation")
+        failed_audit = MCPAuditRecord.objects.filter(operation="confirm_delete").latest("id")
+        self.assertEqual(failed_audit.outcome, MCPAuditRecord.Outcome.FAILURE)
+        self.assertEqual(failed_audit.details["code"], "invalid_confirmation")
         result = confirm_delete(
             self.client_record,
             preview["id"],
@@ -495,6 +594,9 @@ class MCPCapabilityTests(TestCase):
         with self.assertRaises(MCPServiceError) as caught:
             confirm_delete(self.client_record, preview["id"], preview["confirmation_token"])
         self.assertEqual(caught.exception.code, "impact_changed")
+        conflict_audit = MCPAuditRecord.objects.filter(operation="confirm_delete").latest("id")
+        self.assertEqual(conflict_audit.outcome, MCPAuditRecord.Outcome.CONFLICT)
+        self.assertEqual(conflict_audit.details["code"], "impact_changed")
 
     def test_item_delete_clears_poster_and_reports_controlled_cleanup(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(

@@ -19,7 +19,7 @@ from flickrapi.exceptions import FlickrError
 from PIL import Image
 
 from rvservices.flickr_service import mirror_flickr, update_flickr
-from rvservices.instagram_graph_service import mirror_instagram
+from rvservices.instagram_graph_service import _download_binary, mirror_instagram
 from rvservices.results import OperationResult, log_safe_exception
 from rvservices.rss_service import fix_rss_item, mirror_rss
 from rvservices.twitter_service import (
@@ -151,15 +151,11 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertIn("error_type=JSONDecodeError", output)
         self.assertNotIn(secret, output)
 
-    @patch(
-        "rvservices.instagram_graph_service.utils.validate_public_http_url",
-        side_effect=lambda url: url,
-    )
-    @patch("rvservices.instagram_graph_service.requests.get")
+    @patch("rvservices.instagram_graph_service.utils.get_public_url")
     def test_provider_timeout_preserves_instagram_state_without_token_leak(
-        self, request_get, _validate
+        self, get_public_url
     ):
-        request_get.side_effect = requests.Timeout(
+        get_public_url.side_effect = requests.Timeout(
             "https://graph.instagram.com/media?access_token=top-secret"
         )
         service = self.create_service(
@@ -191,6 +187,23 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertIn("error_type=Timeout", output)
         self.assertNotIn("top-secret", output)
         self.assertFalse(item.rvmedia_set.exists())
+
+    @override_settings(MCP_MAX_MEDIA_BYTES=4)
+    @patch("rvservices.instagram_graph_service.utils.get_public_url")
+    def test_instagram_download_uses_redirect_safe_bounded_stream(self, get_public_url):
+        response = Mock(headers={})
+        response.iter_content.return_value = [b"123", b"45"]
+        get_public_url.return_value = response
+
+        with self.assertRaisesMessage(ValueError, "configured limit"):
+            _download_binary("https://cdn.example.com/photo.jpg")
+
+        get_public_url.assert_called_once_with(
+            "https://cdn.example.com/photo.jpg",
+            timeout=120,
+            stream=True,
+        )
+        response.close.assert_called_once()
 
     @patch("rvservices.twitter_service.utils.get_public_url")
     def test_media_decode_failure_preserves_twitter_state(self, get_public_url):

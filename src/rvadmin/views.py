@@ -57,6 +57,28 @@ def _instagram_oauth_redirect_uri(request):
     return f"{base}/rvadmin/instagram_oauth_return/"
 
 
+def _read_twitter_archive_upload(upload):
+    if upload is None:
+        raise MCPServiceError("validation_error", "Twitter archive file is required.", path="archive")
+    declared_size = getattr(upload, "size", None)
+    if not isinstance(declared_size, int) or declared_size < 0:
+        raise MCPServiceError("validation_error", "Twitter archive size is invalid.", path="archive")
+    if declared_size > settings.MCP_MAX_ARCHIVE_BYTES:
+        raise MCPServiceError(
+            "limit_exceeded",
+            "Twitter archive exceeds the configured byte limit.",
+            path="archive",
+        )
+    content = upload.read(settings.MCP_MAX_ARCHIVE_BYTES + 1)
+    if len(content) > settings.MCP_MAX_ARCHIVE_BYTES:
+        raise MCPServiceError(
+            "limit_exceeded",
+            "Twitter archive exceeds the configured byte limit.",
+            path="archive",
+        )
+    return content
+
+
 @login_required
 @admin_page
 def admin_index(request):
@@ -306,9 +328,9 @@ def twitter_connect(request, iid):
 
     if request.method == "POST":
         if request.POST["action"] == "archive":
-            js = request.FILES["archive"]
             try:
-                result = import_twitter_archive(svc, js.read())
+                archive = _read_twitter_archive_upload(request.FILES.get("archive"))
+                result = import_twitter_archive(svc, archive)
                 messages.success(
                     request,
                     "Twitter archive processed: "

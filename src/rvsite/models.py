@@ -285,8 +285,7 @@ class RVMedia(RevisionedModel):
             return "unknown"
 
     def make_original_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (
                                             self.item.domain.name,
@@ -300,8 +299,7 @@ class RVMedia(RevisionedModel):
         return self.original_media
 
     def make_primary_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (
                                             self.item.domain.name,
@@ -315,8 +313,7 @@ class RVMedia(RevisionedModel):
         return self.primary_media
 
     def make_thumbnail_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.thumbnail = "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (
                                             self.item.domain.name,
@@ -328,3 +325,17 @@ class RVMedia(RevisionedModel):
                                             file_type
                                         )
         return self.thumbnail
+
+    @staticmethod
+    def _safe_file_type(file_type):
+        if not isinstance(file_type, str):
+            raise ValueError("Media file type must be a string")
+        normalized = file_type.split("?", 1)[0].lower()
+        if (
+            not normalized
+            or len(normalized) > 10
+            or not normalized.isascii()
+            or not normalized.isalnum()
+        ):
+            raise ValueError("Media file type must be a short ASCII alphanumeric extension")
+        return normalized

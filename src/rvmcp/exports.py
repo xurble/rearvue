@@ -32,6 +32,7 @@ from .services import (
 )
 
 EXPORT_KINDS = ("domains", "services", "items", "media_manifest", "links")
+ASYNC_EXPORT_BATCH_SIZE = 500
 
 
 def _parse_export_time(value, path):
@@ -282,6 +283,94 @@ def submit_export(client, domain_id, updated_after=None):
     return job
 
 
+def _async_export_queryset(kind, domain_ids):
+    if kind == "domains":
+        return RVDomain.objects.filter(id__in=domain_ids).order_by("id")
+    if kind == "services":
+        return RVService.objects.select_related("domain").filter(domain_id__in=domain_ids).order_by("id")
+    if kind == "items":
+        return (
+            RVItem.objects.select_related("domain", "service")
+            .filter(domain_id__in=domain_ids)
+            .order_by("id")
+        )
+    if kind == "media_manifest":
+        return (
+            RVMedia.objects.select_related("item", "item__domain")
+            .filter(item__domain_id__in=domain_ids)
+            .order_by("id")
+        )
+    return (
+        RVLink.objects.select_related("item", "item__domain")
+        .filter(item__domain_id__in=domain_ids)
+        .order_by("id")
+    )
+
+
+def _keyset_batches(queryset, batch_size=ASYNC_EXPORT_BATCH_SIZE):
+    last_id = 0
+    while True:
+        batch = list(queryset.filter(id__gt=last_id)[:batch_size])
+        if not batch:
+            return
+        yield batch
+        last_id = batch[-1].id
+
+
+def _lock_async_export_source(normalized):
+    domain_ids = normalized["domain_ids"]
+    list(
+        RVDomain.objects.select_for_update()
+        .filter(id__in=domain_ids)
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+    if connection.vendor == "sqlite":
+        RVDomain.objects.filter(id__in=domain_ids).update(revision=F("revision"))
+
+    kinds = set(normalized["kinds"])
+    lock_kinds = []
+    if "services" in kinds:
+        lock_kinds.append("services")
+    if kinds.intersection({"items", "media_manifest", "links"}):
+        lock_kinds.append("items")
+    if "media_manifest" in kinds:
+        lock_kinds.append("media_manifest")
+    if "links" in kinds:
+        lock_kinds.append("links")
+    for kind in lock_kinds:
+        queryset = (
+            _async_export_queryset(kind, domain_ids)
+            .select_related(None)
+            .select_for_update()
+            .only("id")
+        )
+        for _batch in _keyset_batches(queryset):
+            pass
+
+
+def _write_async_export_records(handle, digest, client, normalized):
+    count = 0
+    updated_after = _parse_export_time(normalized["updated_after"], "filters.updated_after")
+    for kind in normalized["kinds"]:
+        queryset = _async_export_queryset(kind, normalized["domain_ids"])
+        if updated_after is not None:
+            queryset = queryset.filter(updated_at__gt=updated_after)
+        for batch in _keyset_batches(queryset):
+            for source_record in batch:
+                record = _serialize_export(kind, source_record, client)
+                line = json.dumps(
+                    record,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8") + b"\n"
+                handle.write(line)
+                digest.update(line)
+                count += 1
+    return count
+
+
 def build_export_artifact(job, report):
     root, _data_root = _generated_root()
     folder = root / "exports" / str(job.domain_id)
@@ -291,28 +380,20 @@ def build_export_artifact(job, report):
     destination = folder / f"job-{job.id}-{secrets.token_hex(12)}.ndjson"
     temporary = None
     count = 0
-    cursor = None
     digest = hashlib.sha256()
     try:
         with tempfile.NamedTemporaryFile(dir=folder, prefix=".export-", delete=False) as handle:
             temporary = Path(handle.name)
             os.chmod(temporary, 0o600)
-            while True:
-                page = export_json_page(
+            normalized = normalize_export_filters(job.client, job.payload.get("filters"))
+            with transaction.atomic():
+                _lock_async_export_source(normalized)
+                count = _write_async_export_records(
+                    handle,
+                    digest,
                     job.client,
-                    job.payload.get("filters"),
-                    cursor=cursor,
-                    limit=settings.MCP_MAX_PAGE_SIZE,
+                    normalized,
                 )
-                for record in page["records"]:
-                    line = json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
-                    handle.write(line)
-                    digest.update(line)
-                    count += 1
-                report(current=count, total=0)
-                cursor = page["next_cursor"]
-                if cursor is None:
-                    break
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
@@ -320,6 +401,7 @@ def build_export_artifact(job, report):
         if temporary is not None:
             temporary.unlink(missing_ok=True)
         raise
+    report(current=count, total=count)
     job.artifact_path = str(destination.relative_to(root))
     job.artifact_sha256 = digest.hexdigest()
     job.artifact_size = destination.stat().st_size
