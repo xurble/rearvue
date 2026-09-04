@@ -56,7 +56,7 @@ cryptography==50.0.1
     #   pyjwt
 defusedxml==0.7.1
     # via nltk
-django==6.0.8
+django==6.1
     # via
     #   -r requirements.in
     #   django-debug-toolbar

@@ -40,7 +40,7 @@ colorlog==6.12.0
     # via -r requirements.in
 cryptography==50.0.1
     # via pyjwt
-django==6.0.8
+django==6.1
     # via
     #   -r requirements.in
     #   django-feed-reader
