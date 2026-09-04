@@ -8,7 +8,7 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.14.2
     # via
-    #   httpx
+    #   httpx2
     #   mcp
     #   sse-starlette
     #   starlette
@@ -27,8 +27,6 @@ bleach==6.4.0
 certifi==2026.7.22
     # via
     #   -r requirements.in
-    #   httpcore
-    #   httpx
     #   requests
 cffi==2.1.1
     # via cryptography
@@ -60,31 +58,33 @@ gunicorn==26.2.0
     #   uvicorn-worker
 h11==0.16.0
     # via
-    #   httpcore
+    #   httpcore2
     #   uvicorn
 html5lib==1.1
     # via -r requirements.in
-httpcore==1.0.9
-    # via httpx
-httpx==0.28.1
-    # via mcp
-httpx-sse==0.4.3
+httpcore2==2.12.0
+    # via httpx2
+httpx2==2.12.0
     # via mcp
 idna==3.19
     # via
     #   anyio
-    #   httpx
+    #   httpx2
     #   requests
 jsonschema==4.26.0
     # via mcp
 jsonschema-specifications==2025.9.1
     # via jsonschema
-mcp==1.29.1
+mcp==2.1.1
     # via -r requirements.in
+mcp-types==2.1.1
+    # via mcp
 mysqlclient==2.2.8
     # via -r requirements.in
 oauthlib==3.3.1
     # via requests-oauthlib
+opentelemetry-api==1.44.0
+    # via mcp
 pillow==12.3.0
     # via -r requirements.in
 proctitle==0.1.6
@@ -94,19 +94,15 @@ pycparser==3.0
 pydantic==2.13.5
     # via
     #   mcp
-    #   pydantic-settings
+    #   mcp-types
 pydantic-core==2.46.5
     # via pydantic
-pydantic-settings==2.15.0
-    # via mcp
 pyjwt[crypto]==2.13.0
     # via mcp
 pyrfc3339==2.1.0
     # via django-feed-reader
 python-dateutil==2.9.0.post0
     # via -r requirements.in
-python-dotenv==1.2.3
-    # via pydantic-settings
 python-multipart==0.0.32
     # via mcp
 referencing==0.37.0
@@ -149,11 +145,18 @@ starlette==1.6.0
     # via
     #   mcp
     #   sse-starlette
+truststore==0.10.4
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.16.0
     # via
     #   anyio
     #   beautifulsoup4
+    #   httpx2
     #   mcp
+    #   mcp-types
+    #   opentelemetry-api
     #   pydantic
     #   pydantic-core
     #   referencing
@@ -163,7 +166,6 @@ typing-inspection==0.4.4
     # via
     #   mcp
     #   pydantic
-    #   pydantic-settings
 urllib3==2.7.0
     # via requests
 uvicorn==0.52.4

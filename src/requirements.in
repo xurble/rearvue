@@ -9,7 +9,7 @@ django-feed-reader
 requests
 git+https://github.com/xurble/webpreview
 html5lib
-mcp>=1.27.2,<2
+mcp>=2.1.1,<3
 colorlog
 proctitle
 gunicorn
