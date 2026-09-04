@@ -61,7 +61,7 @@ django==6.0.8
     #   -r requirements.in
     #   django-debug-toolbar
     #   django-feed-reader
-django-debug-toolbar==7.1.1
+django-debug-toolbar==8.0.0
     # via -r requirements-dev.in
 django-feed-reader==2.0.0
     # via -r requirements.in
