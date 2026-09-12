@@ -9,20 +9,17 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-import bleach
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, F, Max, Min, OuterRef, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from rvsite.captions import sanitize_caption_html
 from rvsite.models import RVDomain, RVItem, RVLink, RVMedia, RVService
 
 from .models import MCPAuditRecord, MCPClient, MCPIdempotencyRecord
 
-CAPTION_TAGS = frozenset({"a", "br", "blockquote", "code", "em", "li", "ol", "p", "pre", "strong", "ul"})
-CAPTION_ATTRIBUTES = {"a": ["href", "title"]}
-CAPTION_PROTOCOLS = frozenset({"http", "https", "mailto"})
 WRITABLE_ITEM_FIELDS = frozenset(
     {"datetime_created", "remote_url", "title", "caption", "caption_format", "public", "moderated", "edited", "raw_data"}
 )
@@ -189,13 +186,7 @@ def sanitize_caption(value, caption_format="plain"):
     if caption_format == "plain":
         return html.escape(value).replace("\n", "<br>")
     if caption_format == "html":
-        return bleach.clean(
-            value,
-            tags=CAPTION_TAGS,
-            attributes=CAPTION_ATTRIBUTES,
-            protocols=CAPTION_PROTOCOLS,
-            strip=True,
-        )
+        return sanitize_caption_html(value)
     raise MCPServiceError(
         "validation_error",
         "caption_format must be 'plain' or 'html'.",

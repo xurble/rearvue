@@ -17,6 +17,7 @@ from rvservices.results import (
     log_safe_exception,
     snapshot_media_ids,
 )
+from rvsite.captions import sanitize_caption_html
 from rvsite.models import RVItem, RVLink, RVMedia, RVService
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def _ingest_rss_service(service):
                 },
             )
             item.title = post.title
-            item.caption = post.body
+            item.caption = sanitize_caption_html(post.body)
             item.datetime_created = created_at
             item.date_created = datetime.date(
                 year=item.datetime_created.year,

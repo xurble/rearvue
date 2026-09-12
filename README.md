@@ -90,6 +90,21 @@ Wrong or missing **name** / **alt_domain** leads to 404 in `/rvadmin/` or OAuth 
 
 ## Configuring each service
 
+### Caption trust model
+
+`RVItem.caption` stores HTML from mixed external sources and is always treated as
+untrusted. RSS, Twitter archive, and MCP imports sanitize captions when ingesting
+them, and public rendering sanitizes them again so historical database rows are
+protected without a destructive migration. The display allowlist contains only:
+
+- `<a>` with `href` and `title`, using `http`, `https`, or `mailto`; `target="_blank"`
+  is allowed and RearVue adds `rel="noopener noreferrer"`;
+- `<br>` line breaks; and
+- `<blockquote class="twitter-tweet">` for the archive-generated Twitter embed.
+
+All other elements and attributes, including scripts, event handlers, SVG/MathML,
+styles, and unsafe URL schemes, are removed before the caption is marked safe.
+
 `RVService` rows tie a source to a domain. Choose one of the supported lowercase
 **type** values: `rss`, `twitter`, `flickr`, or `instagram`. Provider data is split
 between three JSON objects: user-managed `config`, secret `credentials`, and

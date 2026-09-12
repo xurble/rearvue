@@ -4,7 +4,10 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils.safestring import mark_safe
 from django.utils.text import slugify
+
+from .captions import sanitize_caption_html
 
 
 class RevisionedModel(models.Model):
@@ -159,12 +162,16 @@ class RVItem(RevisionedModel):
 
     @property
     def display_caption(self) -> str:
-        if self.service.type == "twitter":
-            if self.date_created < datetime.date(year=2009, month=1, day=1) and self.caption:
-                first_character = f"{self.caption[0]}".lower()
-                if first_character == f"{self.caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
-                    return f"@{self.service.config.get('username', '')} {self.caption}"
-        return self.caption
+        caption = self.caption
+        if (
+            self.service.type == "twitter"
+            and self.date_created < datetime.date(year=2009, month=1, day=1)
+            and caption
+        ):
+            first_character = f"{caption[0]}".lower()
+            if first_character == f"{caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
+                caption = f"@{self.service.config.get('username', '')} {caption}"
+        return mark_safe(sanitize_caption_html(caption))
 
     @property
     def first_character(self):
