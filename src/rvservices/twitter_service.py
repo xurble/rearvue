@@ -15,6 +15,7 @@ from rvservices.results import (
     log_safe_exception,
     snapshot_media_ids,
 )
+from rvsite.captions import sanitize_caption_html
 from rvsite.models import RVItem, RVMedia
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ def _import_tweet(service, tweet):
             item.caption = item.caption.replace(match[0], "")
 
     item.caption = item.caption.replace("\n", "<br>")
+    item.caption = sanitize_caption_html(item.caption)
     item.raw_data = json.dumps(tweet)
     if "media" not in tweet["entities"]:
         item.mirror_state = 1

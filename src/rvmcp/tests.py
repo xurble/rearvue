@@ -125,6 +125,20 @@ class MCPItemServiceTests(MCPTestMixin, TestCase):
         item = create_item(self.client, self.payload(caption="<b>not html</b>\nnext"))
         self.assertEqual(item.caption, "&lt;b&gt;not html&lt;/b&gt;<br>next")
 
+    def test_html_caption_preserves_documented_safe_formatting(self):
+        caption = (
+            "<p><strong>Important</strong> <em>note</em></p>"
+            "<ol><li><code>first</code></li></ol>"
+            "<ul><li><pre>second</pre></li></ul>"
+        )
+
+        item = create_item(
+            self.client,
+            self.payload(caption=caption, caption_format="html"),
+        )
+
+        self.assertEqual(item.caption, caption)
+
     @override_settings(MCP_MAX_RAW_DATA_BYTES=10)
     def test_rejects_oversized_raw_data(self):
         with self.assertRaisesMessage(MCPServiceError, "raw_data exceeds"):

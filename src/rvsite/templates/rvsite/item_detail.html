@@ -5,7 +5,7 @@
                     <h3 class="link right"><a href="{% url "show_item" year=item.date_created.year month=item.date_created.month day=item.date_created.day slug=item.get_slug %}">{{item.date_created_display}}</a></h3>
                 {% endif %}
                 <div class="body link">
-                    <p>{{item.display_caption|safe}}</p>
+                    <p>{{item.display_caption}}</p>
                 </div>
 
                 {% if item.media_type > 0 %}

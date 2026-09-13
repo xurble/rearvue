@@ -140,7 +140,10 @@ Private items return 404 unless the requester is the domain owner. The page incl
 
 The shared item renderer displays title or date, caption, media, discovered link previews, creation date navigation, and a link to the original service post. Images may be displayed singly or in a carousel; standard videos use controls; media type 3 videos autoplay and loop.
 
-Captions are rendered with Django's `safe` filter. Twitter archive import deliberately stores anchor, line-break, and blockquote markup in captions; RSS bodies may also contain HTML. The resulting stored-HTML trust boundary is unresolved and documented in [CODE_REVIEW.md](CODE_REVIEW.md#p0--critical-security-and-safety).
+Captions are untrusted stored HTML. RSS, Twitter archive, and MCP imports sanitize
+captions on ingest, and `RVItem.display_caption` sanitizes again before marking the
+value safe for Django rendering so legacy rows remain protected. The allowlist and
+URL/attribute rules are documented in the README's caption trust model.
 
 ### PUB-007 — Layout and archive navigation
 
