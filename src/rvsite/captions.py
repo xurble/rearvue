@@ -1,7 +1,19 @@
+from urllib.parse import urlparse
+
 import bleach
 
-CAPTION_TAGS = frozenset({"a", "br", "blockquote"})
+CAPTION_TAGS = frozenset(
+    {"a", "br", "blockquote", "code", "em", "li", "ol", "p", "pre", "strong", "ul"}
+)
 CAPTION_PROTOCOLS = frozenset({"http", "https", "mailto"})
+
+
+def _is_absolute_http_url(value):
+    try:
+        parsed = urlparse(value)
+        return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+    except ValueError:
+        return False
 
 
 def _allow_caption_attribute(tag, name, value):
@@ -9,7 +21,12 @@ def _allow_caption_attribute(tag, name, value):
         if name in {"href", "title"}:
             return True
         return name == "target" and value == "_blank"
-    return tag == "blockquote" and name == "class" and value == "twitter-tweet"
+    if tag == "blockquote":
+        if name == "class":
+            return value == "twitter-tweet"
+        if name == "cite":
+            return _is_absolute_http_url(value)
+    return False
 
 
 def _protect_external_context(attrs, new=False):

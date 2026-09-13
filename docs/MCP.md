@@ -158,7 +158,7 @@ Client-writable fields are `datetime_created`, `remote_url`, `title`, `caption`,
 
 `caption_format` defaults to `plain`. Plain text is HTML-escaped and newlines become `<br>` because legacy item-detail rendering treats stored captions as HTML.
 
-Explicit `caption_format: "html"` is sanitized before storage. The allowlist is `a`, `br`, `blockquote`, `code`, `em`, `li`, `ol`, `p`, `pre`, `strong`, and `ul`; links may carry only `href` and `title`, using `http`, `https`, or `mailto`. Scripts, event handlers, unsafe protocols, and other markup are stripped.
+Explicit `caption_format: "html"` is sanitized before storage. The allowlist is `a`, `br`, `blockquote`, `code`, `em`, `li`, `ol`, `p`, `pre`, `strong`, and `ul`; links may carry `href` and `title`, using `http`, `https`, or `mailto`. A link may also use `target="_blank"`, in which case RearVue adds `rel="noopener noreferrer"`. Blockquotes may retain `class="twitter-tweet"` or an absolute HTTP(S) `cite` URL. Scripts, event handlers, unsafe protocols, and other markup are stripped.
 
 ### Upsert and conflict behavior
 

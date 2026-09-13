@@ -99,8 +99,10 @@ protected without a destructive migration. The display allowlist contains only:
 
 - `<a>` with `href` and `title`, using `http`, `https`, or `mailto`; `target="_blank"`
   is allowed and RearVue adds `rel="noopener noreferrer"`;
-- `<br>` line breaks; and
-- `<blockquote class="twitter-tweet">` for the archive-generated Twitter embed.
+- `<br>` line breaks and the safe structural/formatting tags `<p>`, `<strong>`,
+  `<em>`, `<code>`, `<pre>`, `<ol>`, `<ul>`, and `<li>`; and
+- `<blockquote class="twitter-tweet">` for the archive-generated Twitter embed,
+  plus an absolute HTTP(S) `cite` URL used by RSS link discovery.
 
 All other elements and attributes, including scripts, event handlers, SVG/MathML,
 styles, and unsafe URL schemes, are removed before the caption is marked safe.
