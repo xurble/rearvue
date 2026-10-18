@@ -79,7 +79,7 @@ mcp==2.2.0
     # via -r requirements.in
 mcp-types==2.2.0
     # via mcp
-mysqlclient==2.2.8
+mysqlclient==2.3.0
     # via -r requirements.in
 oauthlib==3.3.1
     # via requests-oauthlib

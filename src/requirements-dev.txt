@@ -127,7 +127,7 @@ mcp-types==2.2.0
     # via mcp
 mdurl==0.1.2
     # via markdown-it-py
-mysqlclient==2.2.8
+mysqlclient==2.3.0
     # via -r requirements.in
 nltk==3.10.3
     # via safety
