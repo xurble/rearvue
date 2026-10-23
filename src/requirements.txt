@@ -85,7 +85,7 @@ oauthlib==4.0.0
     # via requests-oauthlib
 opentelemetry-api==1.44.0
     # via mcp
-pillow==12.3.0
+pillow==13.0.0
     # via -r requirements.in
 proctitle==0.1.6
     # via -r requirements.in
