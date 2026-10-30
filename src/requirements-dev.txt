@@ -163,7 +163,7 @@ pyjwt[crypto]==2.15.0
     # via mcp
 pyrfc3339==2.1.0
     # via django-feed-reader
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
     # via -r requirements.in
 python-multipart==0.0.32
     # via mcp
@@ -261,6 +261,8 @@ typing-inspection==0.4.4
     # via
     #   mcp
     #   pydantic
+tzdata==2026.6
+    # via python-dateutil
 urllib3==2.8.0
     # via requests
 uvicorn==0.52.4
