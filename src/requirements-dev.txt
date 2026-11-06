@@ -131,7 +131,7 @@ mysqlclient==2.3.0
     # via -r requirements.in
 nltk==3.10.3
     # via safety
-oauthlib==4.0.0
+oauthlib==4.0.1
     # via requests-oauthlib
 opentelemetry-api==1.45.1
     # via mcp
