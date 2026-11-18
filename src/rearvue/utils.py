@@ -24,6 +24,7 @@ MONTH_LIST = ["X", "January", "February", "March", "April", "May", "June", "July
 
 MAX_REDIRECT_HOPS = 10
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+MEDIA_FILE_MODE = 0o644
 
 BLOCKED_HOSTNAMES = frozenset({
     "localhost",
@@ -260,7 +261,10 @@ def write_media_content(local_path, content):
             delete=False,
         ) as handle:
             temporary = Path(handle.name)
-            os.chmod(temporary, 0o600)
+            # Media is published by the web server, which runs as a different
+            # user, so the file must be world-readable. NamedTemporaryFile
+            # creates files 0600; set the mode explicitly, independent of umask.
+            os.chmod(temporary, MEDIA_FILE_MODE)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())

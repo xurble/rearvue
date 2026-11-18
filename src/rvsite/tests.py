@@ -1,11 +1,15 @@
+import os
+import stat
+import tempfile
 from datetime import UTC, date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 
-from rearvue.utils import admin_page, get_public_url, page, validate_public_http_url
+from rearvue.utils import admin_page, get_public_url, page, validate_public_http_url, write_media_content
 from rvsite.models import RVDomain, RVItem, RVLink, RVService
 
 
@@ -82,6 +86,17 @@ class PublicUrlTests(SimpleTestCase):
         returned.close()
         response_close.assert_called_once()
         session.return_value.close.assert_called_once()
+
+
+class WriteMediaContentTests(SimpleTestCase):
+    def test_written_media_is_readable_by_the_web_server(self):
+        # nginx serves /media as a different user, so other-read is required.
+        with tempfile.TemporaryDirectory() as directory, override_settings(DATA_STORE=directory):
+            target = write_media_content("media/example.org/2026/11/18/rss_1_o.jpeg", b"image-bytes")
+
+            self.assertEqual(Path(target).read_bytes(), b"image-bytes")
+            self.assertEqual(stat.S_IMODE(os.stat(target).st_mode), 0o644)
+            self.assertEqual(list(Path(target).parent.glob(".media-*")), [])
 
 
 class DomainOriginTests(SimpleTestCase):
