@@ -1,4 +1,4 @@
-Django>=6.1.2,<6.2
+Django>=6.0.10,<6.1  # 6.1+ requires MySQL 8.4; production runs MySQL 8.0
 bleach
 certifi
 mysqlclient

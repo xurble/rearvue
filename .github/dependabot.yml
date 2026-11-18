@@ -6,3 +6,8 @@ updates:
     directory: "/src"
     schedule:
       interval: "weekly"
+    ignore:
+      # Django 6.1+ requires MySQL 8.4; production runs MySQL 8.0.
+      # Remove once the database is upgraded.
+      - dependency-name: "django"
+        versions: [">=6.1"]
