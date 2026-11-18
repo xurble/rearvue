@@ -1,16 +1,37 @@
-from django.db import models
-from django.utils.text import slugify
-
-from django.contrib.auth.models import User
-
-# Create your models here.
 import datetime
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.db import models
+from django.utils.safestring import mark_safe
+from django.utils.text import slugify
+
+from .captions import sanitize_caption_html
 
 
-class RVDomain(models.Model):
+class RevisionedModel(models.Model):
+    revision = models.PositiveBigIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        is_update = self.pk is not None and not self._state.adding
+        if is_update:
+            self.revision = models.F("revision") + 1
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"revision", "updated_at"}
+
+        super().save(*args, **kwargs)
+
+        if is_update:
+            self.refresh_from_db(fields=("revision", "updated_at"))
+
+
+class RVDomain(RevisionedModel):
     name = models.CharField(max_length=32, unique=True)
     alt_domain = models.CharField(max_length=128, blank=True, default='', db_index=True)
 
@@ -20,7 +41,7 @@ class RVDomain(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     display_name = models.CharField(max_length=128, default='RearVue')
-    poster_image = models.ForeignKey('RVItem', null=True, blank=True, on_delete=models.CASCADE)
+    poster_image = models.ForeignKey('RVItem', null=True, blank=True, on_delete=models.SET_NULL)
 
     blurb = models.TextField(null=True, blank=True, default='')
 
@@ -38,7 +59,7 @@ class RVDomain(models.Model):
         return f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{host}"
 
 
-class RVService(models.Model):
+class RVService(RevisionedModel):
 
     class Type(models.TextChoices):
         RSS = "rss", "RSS"
@@ -61,7 +82,7 @@ class RVService(models.Model):
         return "%s (%s) %s" % (self.name, self.type, self.config.get("username", ""))
 
 
-class RVItem(models.Model):
+class RVItem(RevisionedModel):
 
     service = models.ForeignKey(RVService, on_delete=models.CASCADE)
     domain = models.ForeignKey(RVDomain, on_delete=models.CASCADE)
@@ -88,9 +109,6 @@ class RVItem(models.Model):
     moderated = models.BooleanField(default=False)
     edited = models.BooleanField(default=False)
 
-    revision = models.PositiveBigIntegerField(default=1)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ("-id", )
         constraints = [
@@ -109,17 +127,7 @@ class RVItem(models.Model):
         return "%s - %s (%d)" % (self.display_title, self.service.name, self.mirror_state)
 
     def save(self, *args, **kwargs):
-        is_update = self.pk is not None
-        if is_update:
-            self.revision = models.F("revision") + 1
-            update_fields = kwargs.get("update_fields")
-            if update_fields is not None:
-                kwargs["update_fields"] = set(update_fields) | {"revision", "updated_at"}
-
         super().save(*args, **kwargs)
-
-        if is_update:
-            self.refresh_from_db(fields=("revision", "updated_at"))
 
         if not self.slug:
 
@@ -154,12 +162,16 @@ class RVItem(models.Model):
 
     @property
     def display_caption(self) -> str:
-        if self.service.type == "twitter":
-            if self.date_created < datetime.date(year=2009, month=1, day=1) and self.caption:
-                first_character = f"{self.caption[0]}".lower()
-                if first_character == f"{self.caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
-                    return f"@{self.service.config.get('username', '')} {self.caption}"
-        return self.caption
+        caption = self.caption
+        if (
+            self.service.type == "twitter"
+            and self.date_created < datetime.date(year=2009, month=1, day=1)
+            and caption
+        ):
+            first_character = f"{caption[0]}".lower()
+            if first_character == f"{caption[0]}" and first_character in "abcdefghijklmnopqrstuvwxyz":
+                caption = f"@{self.service.config.get('username', '')} {caption}"
+        return mark_safe(sanitize_caption_html(caption))
 
     @property
     def first_character(self):
@@ -204,10 +216,6 @@ class RVItem(models.Model):
         return self.rvlink_set.filter(is_context=False)
 
     @property
-    def orginal_links(self):
-        return self.original_links
-
-    @property
     def context_links(self):
         return self.rvlink_set.filter(is_context=True)
 
@@ -221,7 +229,7 @@ class RVItem(models.Model):
         return items
 
 
-class RVLink(models.Model):
+class RVLink(RevisionedModel):
 
     item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
 
@@ -248,7 +256,7 @@ class RVLink(models.Model):
         return self.image
 
 
-class RVMedia(models.Model):
+class RVMedia(RevisionedModel):
 
     item = models.ForeignKey(RVItem, on_delete=models.CASCADE)
 
@@ -269,17 +277,22 @@ class RVMedia(models.Model):
 
     @property
     def mime_type(self) -> str:
-        ext = self.original_media.split(".")[-1]
+        ext = self.original_media.rsplit(".", 1)[-1].lower() if "." in self.original_media else ""
         if self.media_type == 1:
-            return f"image/{ext}"
+            return {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "webp": "image/webp",
+                "gif": "image/gif",
+            }.get(ext, "image/unknown")
         elif self.media_type in [2, 3]:
-            return f"video/{ext}"
+            return "video/mp4" if ext == "mp4" else "video/unknown"
         else:
             return "unknown"
 
     def make_original_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.original_media = "media/%s/%d/%02d/%02d/%s_%d_o.%s" % (
                                             self.item.domain.name,
@@ -293,8 +306,7 @@ class RVMedia(models.Model):
         return self.original_media
 
     def make_primary_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.primary_media = "media/%s/%d/%02d/%02d/%s_%d_p.%s" % (
                                             self.item.domain.name,
@@ -308,8 +320,7 @@ class RVMedia(models.Model):
         return self.primary_media
 
     def make_thumbnail_path(self, file_type):
-        if "?" in file_type:
-            file_type = file_type.split("?")[0]
+        file_type = self._safe_file_type(file_type)
 
         self.thumbnail = "media/%s/%d/%02d/%02d/%s_%d_t.%s" % (
                                             self.item.domain.name,
@@ -321,3 +332,17 @@ class RVMedia(models.Model):
                                             file_type
                                         )
         return self.thumbnail
+
+    @staticmethod
+    def _safe_file_type(file_type):
+        if not isinstance(file_type, str):
+            raise ValueError("Media file type must be a string")
+        normalized = file_type.split("?", 1)[0].lower()
+        if (
+            not normalized
+            or len(normalized) > 10
+            or not normalized.isascii()
+            or not normalized.isalnum()
+        ):
+            raise ValueError("Media file type must be a short ASCII alphanumeric extension")
+        return normalized

@@ -1,18 +1,36 @@
+import os
+import stat
+import tempfile
+from datetime import UTC, date, datetime
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 
-from rearvue.utils import admin_page, get_public_url, page
-from rvsite.models import RVDomain
+from rearvue.utils import admin_page, get_public_url, page, validate_public_http_url, write_media_content
+from rvsite.models import RVDomain, RVItem, RVLink, RVService
 
 
 class PublicUrlTests(SimpleTestCase):
-    @patch("rearvue.utils._resolve_host_is_public", return_value=True)
-    @patch("rearvue.utils.requests.get")
-    def test_get_public_url_validates_redirect_target(self, request_get, _resolve):
-        request_get.return_value = SimpleNamespace(
+    def test_validate_public_http_url_rejects_non_global_address_ranges(self):
+        self.assertIsNone(validate_public_http_url("http://100.64.0.1/resource"))
+        self.assertIsNone(validate_public_http_url("http://100.100.100.100/resource"))
+        self.assertIsNone(validate_public_http_url("http://[fec0::1]/resource"))
+
+    @patch("rearvue.utils.socket.getaddrinfo")
+    def test_validate_public_http_url_rejects_dns_resolving_to_cgnat(self, getaddrinfo):
+        getaddrinfo.return_value = [
+            (2, 1, 6, "", ("100.64.0.1", 443)),
+        ]
+
+        self.assertIsNone(validate_public_http_url("https://example.com/resource"))
+
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    @patch("rearvue.utils._request_pinned_public_url")
+    def test_get_public_url_validates_redirect_target(self, request_url, _resolve):
+        request_url.return_value = SimpleNamespace(
             status_code=302,
             headers={"Location": "http://127.0.0.1/private"},
         )
@@ -20,20 +38,65 @@ class PublicUrlTests(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, "Redirect led"):
             get_public_url("https://example.com/start")
 
-    @patch("rearvue.utils._resolve_host_is_public", return_value=True)
-    @patch("rearvue.utils.requests.get")
-    def test_get_public_url_returns_non_redirect_response(self, request_get, _resolve):
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    @patch("rearvue.utils._request_pinned_public_url")
+    def test_get_public_url_returns_non_redirect_response(self, request_url, _resolve):
         response = SimpleNamespace(status_code=200, headers={})
-        request_get.return_value = response
+        request_url.return_value = response
 
         self.assertIs(get_public_url("https://example.com/image.jpg"), response)
-        request_get.assert_called_once_with(
+        request_url.assert_called_once_with(
             "https://example.com/image.jpg",
             timeout=30,
-            verify=True,
-            allow_redirects=False,
             headers=None,
+            stream=False,
         )
+
+    @patch("rearvue.utils.requests.Session")
+    @patch(
+        "rearvue.utils._resolve_public_addresses",
+        side_effect=[("93.184.216.34",), ()],
+    )
+    def test_get_public_url_rejects_dns_rebinding_before_connect(
+        self, _resolve, session
+    ):
+        with self.assertRaisesMessage(ValueError, "exclusively to public"):
+            get_public_url("https://example.com/private")
+
+        session.assert_not_called()
+
+    @patch("rearvue.utils.requests.Session")
+    @patch("rearvue.utils._resolve_public_addresses", return_value=("93.184.216.34",))
+    def test_get_public_url_connects_to_validated_ip_with_original_tls_host(
+        self, _resolve, session
+    ):
+        response_close = Mock()
+        response = SimpleNamespace(status_code=200, headers={}, close=response_close)
+        session.return_value.get.return_value = response
+
+        returned = get_public_url("https://example.com/image.jpg")
+
+        requested_url = session.return_value.get.call_args.args[0]
+        requested_options = session.return_value.get.call_args.kwargs
+        self.assertEqual(requested_url, "https://93.184.216.34/image.jpg")
+        self.assertEqual(requested_options["headers"]["Host"], "example.com")
+        adapter = session.return_value.mount.call_args.args[1]
+        self.assertEqual(adapter.server_hostname, "example.com")
+        self.assertFalse(session.return_value.trust_env)
+        returned.close()
+        response_close.assert_called_once()
+        session.return_value.close.assert_called_once()
+
+
+class WriteMediaContentTests(SimpleTestCase):
+    def test_written_media_is_readable_by_the_web_server(self):
+        # nginx serves /media as a different user, so other-read is required.
+        with tempfile.TemporaryDirectory() as directory, override_settings(DATA_STORE=directory):
+            target = write_media_content("media/example.org/2026/11/18/rss_1_o.jpeg", b"image-bytes")
+
+            self.assertEqual(Path(target).read_bytes(), b"image-bytes")
+            self.assertEqual(stat.S_IMODE(os.stat(target).st_mode), 0o644)
+            self.assertEqual(list(Path(target).parent.glob(".media-*")), [])
 
 
 class DomainOriginTests(SimpleTestCase):
@@ -48,6 +111,86 @@ class DomainOriginTests(SimpleTestCase):
         domain = RVDomain(name="example.com", alt_domain="http://archive.example.com/")
 
         self.assertEqual(domain.public_origin, "http://archive.example.com")
+
+
+class ItemLinkTests(TestCase):
+    def setUp(self):
+        owner = get_user_model().objects.create_user(username="owner")
+        domain = RVDomain.objects.create(name="example.com", owner=owner)
+        service = RVService.objects.create(
+            name="Example feed",
+            domain=domain,
+            type=RVService.Type.RSS,
+            last_checked=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+        self.item = RVItem(
+            service=service,
+            domain=domain,
+            item_id="example-item",
+            date_created=date(2026, 8, 30),
+            datetime_created=datetime(2026, 8, 30, 12, tzinfo=UTC),
+        )
+        self.item.save()
+
+    def test_original_links_excludes_context_links(self):
+        original_link = RVLink.objects.create(
+            item=self.item,
+            url="https://example.com/original",
+            is_context=False,
+        )
+        RVLink.objects.create(
+            item=self.item,
+            url="https://example.com/context",
+            is_context=True,
+        )
+
+        self.assertQuerySetEqual(self.item.original_links, [original_link])
+
+    def test_misspelled_original_links_alias_is_not_supported(self):
+        self.assertFalse(hasattr(self.item, "orginal_links"))
+
+
+class ItemPersistenceTests(TestCase):
+    def setUp(self):
+        owner = get_user_model().objects.create_user(username="item-owner")
+        self.domain = RVDomain.objects.create(name="items.example.com", owner=owner)
+        self.service = RVService.objects.create(
+            name="Example feed",
+            domain=self.domain,
+            type=RVService.Type.RSS,
+            last_checked=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    def create_item(self, **changes):
+        values = {
+            "service": self.service,
+            "domain": self.domain,
+            "item_id": "manager-created-item",
+            "date_created": date(2026, 8, 30),
+            "datetime_created": datetime(2026, 8, 30, 12, tzinfo=UTC),
+            "title": "Manager-created title",
+        }
+        values.update(changes)
+        return RVItem.objects.create(**values)
+
+    def test_manager_create_generates_slug_without_duplicate_insert(self):
+        item = self.create_item()
+
+        self.assertEqual(item.slug, "manager-created-title")
+        self.assertEqual(RVItem.objects.count(), 1)
+        self.assertEqual(RVItem.objects.get().slug, item.slug)
+
+    def test_update_preserves_slug_and_row(self):
+        item = self.create_item()
+        original_slug = item.slug
+
+        item.title = "Updated title"
+        item.save()
+
+        self.assertEqual(RVItem.objects.count(), 1)
+        item.refresh_from_db()
+        self.assertEqual(item.title, "Updated title")
+        self.assertEqual(item.slug, original_slug)
 
 
 class AccessDecoratorTests(TestCase):

@@ -8,7 +8,6 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from flickrapi import FlickrAPI
 
-import json
 import secrets
 from datetime import timedelta
 
@@ -26,6 +25,8 @@ import rvservices.instagram_oauth
 import rvservices.flickr_service
 import rvservices.rss_service
 import rvservices.twitter_service
+from rvmcp.archive_import import import_twitter_archive
+from rvmcp.services import MCPServiceError
 
 
 def _safe_admin_redirect(request, fallback=None):
@@ -54,6 +55,28 @@ def _instagram_oauth_redirect_uri(request):
     else:
         base = f"{settings.DEFAULT_DOMAIN_PROTOCOL}://{dom.name}"
     return f"{base}/rvadmin/instagram_oauth_return/"
+
+
+def _read_twitter_archive_upload(upload):
+    if upload is None:
+        raise MCPServiceError("validation_error", "Twitter archive file is required.", path="archive")
+    declared_size = getattr(upload, "size", None)
+    if not isinstance(declared_size, int) or declared_size < 0:
+        raise MCPServiceError("validation_error", "Twitter archive size is invalid.", path="archive")
+    if declared_size > settings.MCP_MAX_ARCHIVE_BYTES:
+        raise MCPServiceError(
+            "limit_exceeded",
+            "Twitter archive exceeds the configured byte limit.",
+            path="archive",
+        )
+    content = upload.read(settings.MCP_MAX_ARCHIVE_BYTES + 1)
+    if len(content) > settings.MCP_MAX_ARCHIVE_BYTES:
+        raise MCPServiceError(
+            "limit_exceeded",
+            "Twitter archive exceeds the configured byte limit.",
+            path="archive",
+        )
+    return content
 
 
 @login_required
@@ -305,11 +328,17 @@ def twitter_connect(request, iid):
 
     if request.method == "POST":
         if request.POST["action"] == "archive":
-            js = request.FILES["archive"]
-            data = js.read().decode('utf-8')
-
-            data = data[len("window.YTD.tweets.part0 = "):]
-            rvservices.twitter_service.import_archive(svc, json.loads(data))
+            try:
+                archive = _read_twitter_archive_upload(request.FILES.get("archive"))
+                result = import_twitter_archive(svc, archive)
+                messages.success(
+                    request,
+                    "Twitter archive processed: "
+                    f"{result['processed_count']} imported, "
+                    f"{result['skipped_count']} skipped, {result['failed_count']} failed.",
+                )
+            except MCPServiceError as exc:
+                messages.error(request, exc.message)
 
 
         return HttpResponseRedirect(reverse("admin_index"))

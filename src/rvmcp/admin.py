@@ -1,8 +1,16 @@
-from django import forms
-from django.contrib import admin, messages
 import re
 
-from .models import MCPAuditRecord, MCPClient, MCPIdempotencyRecord, MCP_SCOPES
+from django import forms
+from django.contrib import admin, messages
+
+from .models import (
+    MCP_SCOPES,
+    MCPAuditRecord,
+    MCPClient,
+    MCPDestructivePreview,
+    MCPIdempotencyRecord,
+    MCPJob,
+)
 
 
 class MCPClientAdminForm(forms.ModelForm):
@@ -83,4 +91,38 @@ class MCPIdempotencyRecordAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MCPJob)
+class MCPJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "created_at", "operation", "status", "domain", "attempt_count",
+        "progress_current", "progress_total",
+    )
+    list_filter = ("operation", "status")
+    readonly_fields = tuple(field.name for field in MCPJob._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MCPDestructivePreview)
+class MCPDestructivePreviewAdmin(admin.ModelAdmin):
+    list_display = ("id", "created_at", "operation", "domain", "expires_at", "used_at")
+    readonly_fields = tuple(field.name for field in MCPDestructivePreview._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False

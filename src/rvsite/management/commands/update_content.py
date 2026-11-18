@@ -1,132 +1,157 @@
-from django.core.management.base import BaseCommand
-from django.db.models import Max, Min
-from django.utils import timezone
-from django.template.loader import render_to_string
+import logging
 
-from rvsite.models import RVItem, RVDomain
+from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Max, Min
+from django.template.loader import render_to_string
+from django.utils import timezone
+
 from rearvue.utils import make_full_path
+from rvservices.results import OperationResult, log_safe_exception
+from rvsite.models import RVDomain, RVItem
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Update content from all services (RSS, Twitter, Instagram, Flickr) and generate RSS feeds'
+    help = "Update content from all services (RSS, Twitter, Instagram, Flickr) and generate RSS feeds"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--skip-rss',
-            action='store_true',
-            help='Skip RSS updates',
+            "--skip-rss",
+            action="store_true",
+            help="Skip RSS updates",
         )
         parser.add_argument(
-            '--skip-twitter',
-            action='store_true',
-            help='Skip Twitter updates',
+            "--skip-twitter",
+            action="store_true",
+            help="Skip Twitter updates",
         )
         parser.add_argument(
-            '--skip-instagram',
-            action='store_true',
-            help='Skip Instagram updates',
+            "--skip-instagram",
+            action="store_true",
+            help="Skip Instagram updates",
         )
         parser.add_argument(
-            '--skip-flickr',
-            action='store_true',
-            help='Skip Flickr updates',
+            "--skip-flickr",
+            action="store_true",
+            help="Skip Flickr updates",
         )
         parser.add_argument(
-            '--skip-cleanup',
-            action='store_true',
-            help='Skip domain cleanup and RSS generation',
+            "--skip-cleanup",
+            action="store_true",
+            help="Skip domain cleanup and RSS generation",
         )
 
     def handle(self, *args, **options):
-        # Update RSS
-        if not options['skip_rss']:
-            self.stdout.write("Updating RSS")
-            try:
-                from rvservices.rss_service import update_rss, mirror_rss, find_rss_links
-                update_rss()
-                self.stdout.write(self.style.SUCCESS("RSS update completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"RSS update failed: {ex}"))
+        failed_phases = []
 
-            try:
-                mirror_rss()
-                find_rss_links()
-                self.stdout.write(self.style.SUCCESS("RSS mirroring and link finding completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"RSS mirroring failed: {ex}"))
+        if not options["skip_rss"]:
+            from rvservices.rss_service import find_rss_links, mirror_rss, update_rss
 
-        # Update Twitter
-        if not options['skip_twitter']:
-            self.stdout.write("Updating Twitter")
-            try:
-                from rvservices.twitter_service import find_twitter_links, mirror_twitter
-                mirror_twitter()
-                find_twitter_links()
-                self.stdout.write(self.style.SUCCESS("Twitter update completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"Twitter update failed: {ex}"))
+            self._run_phase("rss-update", update_rss, failed_phases)
+            self._run_phase("rss-mirror", mirror_rss, failed_phases)
+            self._run_phase("rss-links", find_rss_links, failed_phases)
 
-        # Update Instagram
-        if not options['skip_instagram']:
-            self.stdout.write("Updating Instagram")
-            try:
-                from rvservices.instagram_graph_service import mirror_instagram, update_instagram
+        if not options["skip_twitter"]:
+            from rvservices.twitter_service import find_twitter_links, mirror_twitter
 
-                update_instagram()
-                mirror_instagram()
-                self.stdout.write(self.style.SUCCESS("Instagram update completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"Instagram update failed: {ex}"))
+            self._run_phase("twitter-mirror", mirror_twitter, failed_phases)
+            self._run_phase("twitter-links", find_twitter_links, failed_phases)
 
-        # Update Flickr
-        if not options['skip_flickr']:
-            self.stdout.write("Updating Flickr")
-            try:
-                from rvservices.flickr_service import update_flickr, mirror_flickr
-                update_flickr()
-                self.stdout.write(self.style.SUCCESS("Flickr update completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"Flickr update failed: {ex}"))
+        if not options["skip_instagram"]:
+            from rvservices.instagram_graph_service import (
+                mirror_instagram,
+                update_instagram,
+            )
 
-            self.stdout.write("Mirroring Flickr")
-            try:
-                mirror_flickr()
-                self.stdout.write(self.style.SUCCESS("Flickr mirroring completed"))
-            except Exception as ex:
-                self.stdout.write(self.style.ERROR(f"Flickr mirroring failed: {ex}"))
+            self._run_phase("instagram-update", update_instagram, failed_phases)
+            self._run_phase("instagram-mirror", mirror_instagram, failed_phases)
 
-        # Clean up domains and generate RSS feeds
-        if not options['skip_cleanup']:
-            self.stdout.write("Cleaning up domains")
+        if not options["skip_flickr"]:
+            from rvservices.flickr_service import mirror_flickr, update_flickr
+
+            self._run_phase("flickr-update", update_flickr, failed_phases)
+            self._run_phase("flickr-mirror", mirror_flickr, failed_phases)
+
+        if not options["skip_cleanup"]:
             for domain in RVDomain.objects.all():
-                self.stdout.write(f"Processing domain: {domain}")
+                self._run_phase(
+                    f"domain-metadata:{domain.id}",
+                    lambda domain=domain: self._update_domain_metadata(domain),
+                    failed_phases,
+                )
+                self._run_phase(
+                    f"domain-feed:{domain.id}",
+                    lambda domain=domain: self._generate_domain_feed(domain),
+                    failed_phases,
+                )
 
-                try:
-                    max_year = RVItem.objects.filter(service__domain=domain).aggregate(Max('datetime_created'))["datetime_created__max"]
-                    min_year = RVItem.objects.filter(service__domain=domain).aggregate(Min('datetime_created'))["datetime_created__min"]
+        if failed_phases:
+            summary = ", ".join(f"{phase}={count}" for phase, count in failed_phases)
+            message = f"Content update failed; failed phases/counts: {summary}"
+            self.stdout.write(self.style.ERROR(message))
+            raise CommandError(message)
 
-                    if max_year and min_year:
-                        domain.max_year = max_year.year
-                        domain.min_year = min_year.year
-                        domain.last_updated = timezone.now()
-                        domain.save()
-                        self.stdout.write(self.style.SUCCESS(f"Updated domain {domain}: {min_year.year}-{max_year.year}"))
-                    else:
-                        self.stdout.write(self.style.WARNING(f"No items found for domain {domain}"))
-                except Exception as ex:
-                    self.stdout.write(self.style.ERROR(f"Failed to update domain {domain}: {ex}"))
+        self.stdout.write(
+            self.style.SUCCESS("Content update completed; failed phases/counts: none")
+        )
 
-                # Generate RSS feed for domain
-                try:
-                    rss_path = make_full_path(f"media/{domain.name}/rss.xml")
-                    with open(rss_path, "w") as out:
-                        vals = {
-                            "domain": domain,
-                            "items": RVItem.objects.filter(service__domain=domain).filter(public=True).order_by("-datetime_created")[:25]
-                        }
-                        out.write(render_to_string("rss.xml", vals))
-                    self.stdout.write(self.style.SUCCESS(f"Generated RSS feed for {domain}"))
-                except Exception as ex:
-                    self.stdout.write(self.style.ERROR(f"Failed to generate RSS feed for {domain}: {ex}"))
+    def _run_phase(self, name, callback, failed_phases):
+        self.stdout.write(f"Running {name}")
+        try:
+            result = callback()
+        except Exception as exc:  # noqa: BLE001 - scheduler phase boundary.
+            log_safe_exception(
+                logger,
+                "Content update phase failed phase=%s",
+                name,
+                exc=exc,
+            )
+            failed_phases.append((name, 1))
+            self.stdout.write(self.style.ERROR(f"{name} failed (1)"))
+            return
 
-        self.stdout.write(self.style.SUCCESS("Content update completed"))
+        if result is None:
+            result = OperationResult(processed=1)
+        if not isinstance(result, OperationResult):
+            raise TypeError(f"Phase {name} returned an unsupported result")
+
+        if result.failed:
+            failed_phases.append((name, result.failed))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"{name} completed with failures: processed={result.processed} failed={result.failed}"
+                )
+            )
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(f"{name} completed: processed={result.processed}")
+            )
+
+    def _update_domain_metadata(self, domain):
+        years = RVItem.objects.filter(service__domain=domain).aggregate(
+            Max("datetime_created"), Min("datetime_created")
+        )
+        max_year = years["datetime_created__max"]
+        min_year = years["datetime_created__min"]
+
+        if max_year and min_year:
+            domain.max_year = max_year.year
+            domain.min_year = min_year.year
+            domain.last_updated = timezone.now()
+            domain.save(update_fields=["max_year", "min_year", "last_updated"])
+        else:
+            logger.warning("No items found for domain id=%s", domain.id)
+        return OperationResult(processed=1)
+
+    def _generate_domain_feed(self, domain):
+        rss_path = make_full_path(f"media/{domain.name}/rss.xml")
+        values = {
+            "domain": domain,
+            "items": RVItem.objects.filter(
+                service__domain=domain, public=True
+            ).order_by("-datetime_created")[:25],
+        }
+        with open(rss_path, "w", encoding="utf-8") as output:
+            output.write(render_to_string("rss.xml", values))
+        return OperationResult(processed=1)

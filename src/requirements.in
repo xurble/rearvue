@@ -1,4 +1,4 @@
-Django>=6.0.8,<6.1
+Django>=6.0.10,<6.1  # 6.1+ requires MySQL 8.4; production runs MySQL 8.0
 bleach
 certifi
 mysqlclient
@@ -9,7 +9,7 @@ django-feed-reader
 requests
 git+https://github.com/xurble/webpreview
 html5lib
-mcp>=1.27.2,<2
+mcp>=2.3.0,<3
 colorlog
 proctitle
 gunicorn

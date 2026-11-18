@@ -52,3 +52,46 @@ class ItemSearchFilters(TypedDict, total=False):
     media_types: NotRequired[list[int]]
     has_links: NotRequired[bool]
     link_is_context: NotRequired[bool]
+
+
+class LinkCreateInput(TypedDict, total=False):
+    item_id: Required[int]
+    url: Required[str]
+    title: NotRequired[str]
+    description: NotRequired[str]
+    is_context: NotRequired[bool]
+
+
+class LinkPatchInput(TypedDict, total=False):
+    expected_revision: Required[int]
+    url: NotRequired[str]
+    title: NotRequired[str]
+    description: NotRequired[str]
+    is_context: NotRequired[bool]
+
+
+class MediaCreateInput(TypedDict, total=False):
+    item_id: Required[int]
+    content_base64: NotRequired[str]
+    source_url: NotRequired[str]
+
+
+class MediaPatchInput(TypedDict, total=False):
+    expected_revision: Required[int]
+    content_base64: NotRequired[str]
+    source_url: NotRequired[str]
+
+
+class ServiceCreateInput(TypedDict, total=False):
+    domain_id: Required[int]
+    name: Required[str]
+    type: Required[str]
+    live: NotRequired[bool]
+    hide_unmoderated: NotRequired[bool]
+
+
+class ServicePatchInput(TypedDict, total=False):
+    expected_revision: Required[int]
+    name: NotRequired[str]
+    live: NotRequired[bool]
+    hide_unmoderated: NotRequired[bool]
