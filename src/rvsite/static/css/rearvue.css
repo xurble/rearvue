@@ -315,6 +315,49 @@ a.carousel-control {
     border-radius:10px;
 }
 
+/*
+ * Multi-image slideshows: Bootstrap shows only the active slide, so the
+ * slideshow resizes (and the page jumps) whenever images differ in size or
+ * aspect ratio. Stack every slide in one grid cell instead, so the slideshow
+ * is always as tall as its tallest image at the current width, and hide the
+ * inactive slides with visibility (which keeps their space) not display.
+ */
+.media-holder .carousel-inner {
+    display: grid;
+}
+
+.media-holder .carousel-inner > .item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    grid-area: 1 / 1;
+    visibility: hidden;
+}
+
+.media-holder .carousel-inner > .active,
+.media-holder .carousel-inner > .next,
+.media-holder .carousel-inner > .prev {
+    visibility: visible;
+}
+
+/* Keep the incoming slide in the shared cell; Bootstrap's transforms still slide it in. */
+.media-holder .carousel-inner > .next,
+.media-holder .carousel-inner > .prev {
+    position: relative;
+}
+
+.media-holder .carousel-inner > .item > img.carousel {
+    min-width: 0;
+}
+
+/* The prev/next areas span the reserved height, so drop Bootstrap's shading
+   rather than darkening the empty space around shorter images. */
+.media-holder .carousel-control.left,
+.media-holder .carousel-control.right {
+    background-image: none;
+    filter: none;
+}
+
 div.fp_links ul {
     margin-bottom: 20px;
     margin-top:0px;
