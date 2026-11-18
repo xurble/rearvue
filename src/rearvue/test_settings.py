@@ -39,3 +39,10 @@ from .settings import *
 
 LOGGING = {"version": 1, "disable_existing_loggers": False}
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+# Tests don't run collectstatic, so render static URLs unhashed. The hashed
+# (manifest) pipeline is exercised end to end by rvsite.tests.HashedStaticFilesTests.
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}

@@ -169,6 +169,15 @@ MEDIA_URL = '/media/'
 STATIC_ROOT = settings_server.STATIC_ROOT
 MEDIA_ROOT = settings_server.MEDIA_ROOT
 
+# Content-hashed static file names (rearvue.<hash>.css) so a deploy changes the
+# URL and Cloudflare/browser caches can never serve a stale stylesheet. Strict:
+# a template referencing a file missing from the collectstatic manifest errors
+# rather than silently falling back to an unhashed (cacheable) URL.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"},
+}
+
 
 # List of finder classes that know how to find static files in
 # various locations.

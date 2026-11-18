@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 import tempfile
 from datetime import UTC, date, datetime
@@ -7,6 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
+from django.template.loader import render_to_string
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 
 from rearvue.utils import admin_page, get_public_url, page, validate_public_http_url, write_media_content
@@ -97,6 +100,32 @@ class WriteMediaContentTests(SimpleTestCase):
             self.assertEqual(Path(target).read_bytes(), b"image-bytes")
             self.assertEqual(stat.S_IMODE(os.stat(target).st_mode), 0o644)
             self.assertEqual(list(Path(target).parent.glob(".media-*")), [])
+
+
+MANIFEST_STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"},
+}
+
+
+class HashedStaticFilesTests(SimpleTestCase):
+    """Run the production static pipeline: collectstatic must succeed (every
+    url() in our CSS resolves) and base.html must emit hashed, existing files."""
+
+    def test_collectstatic_and_base_template_use_hashed_existing_files(self):
+        with tempfile.TemporaryDirectory() as static_root, override_settings(
+            STATIC_ROOT=static_root, STORAGES=MANIFEST_STORAGES
+        ):
+            # override_settings resets the cached staticfiles storage itself.
+            call_command("collectstatic", interactive=False, verbosity=0)
+            html = render_to_string("base.html", {"domain": SimpleNamespace(display_name="x")})
+
+            static_urls = re.findall(r'(?:src|href)="(/static/[^"]+)"', html)
+            self.assertEqual(len(static_urls), 6, html)
+            for url in static_urls:
+                name = url.removeprefix("/static/")
+                self.assertRegex(name, r"\.[0-9a-f]{12}\.", f"not hashed: {url}")
+                self.assertTrue((Path(static_root) / name).is_file(), f"missing: {url}")
 
 
 class DomainOriginTests(SimpleTestCase):
