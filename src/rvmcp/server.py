@@ -4,7 +4,7 @@ from typing import Any
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.db.models import Count
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 from rvsite.models import RVService
@@ -74,18 +74,9 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
-mcp = FastMCP(
+mcp = MCPServer(
     "RearVue",
     instructions="Authenticated, domain-scoped access to RearVue normalized archive data.",
-    streamable_http_path="/",
-    stateless_http=True,
-    json_response=True,
-    max_request_body_size=settings.MCP_MAX_REQUEST_BODY_BYTES,
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=list(settings.MCP_ALLOWED_HOSTS),
-        allowed_origins=list(settings.MCP_ALLOWED_ORIGINS),
-    ),
 )
 
 
@@ -467,4 +458,15 @@ async def delete_confirm(preview_id: int, confirmation_token: str) -> dict[str, 
     return await _run(lambda: confirm_delete(_client(), preview_id, confirmation_token))
 
 
-application = mcp.streamable_http_app()
+# mcp 2.x takes transport settings here rather than on the server constructor.
+application = mcp.streamable_http_app(
+    streamable_http_path="/",
+    stateless_http=True,
+    json_response=True,
+    max_request_body_size=settings.MCP_MAX_REQUEST_BODY_BYTES,
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=list(settings.MCP_ALLOWED_HOSTS),
+        allowed_origins=list(settings.MCP_ALLOWED_ORIGINS),
+    ),
+)
