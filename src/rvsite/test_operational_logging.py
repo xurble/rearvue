@@ -107,6 +107,62 @@ class ServiceFailureLoggingTests(TestCase):
 
     @patch(
         "rvservices.twitter_service.utils.final_destination",
+        return_value="https://x.com/someone/status/1319463552722358273",
+    )
+    @patch("rvservices.twitter_service.utils.make_link")
+    def test_quote_tweet_tco_link_is_resolved_and_skipped(
+        self, make_link, final_destination
+    ):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            caption="This. <a href='https://t.co/5omGmNSusb'>t.co/5omGmNSusb</a>",
+            raw_data=json.dumps(
+                {"entities": {"urls": [{"expanded_url": "https://t.co/5omGmNSusb"}]}}
+            ),
+            mirror_state=1,
+        )
+
+        result = find_twitter_links(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1))
+        final_destination.assert_called_once_with("https://t.co/5omGmNSusb")
+        make_link.assert_not_called()
+        self.assertEqual(item.mirror_state, 2)
+
+    @patch("rvservices.twitter_service.utils.final_destination")
+    @patch("rvservices.twitter_service.utils.make_link", return_value=(True, ""))
+    def test_tweet_links_on_x_and_twitter_are_skipped_without_resolving(
+        self, make_link, final_destination
+    ):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            raw_data=json.dumps(
+                {
+                    "entities": {
+                        "urls": [
+                            {"expanded_url": "https://x.com/a/status/1"},
+                            {"expanded_url": "http://mobile.twitter.com/b/status/2"},
+                            {"expanded_url": "https://example.com/article"},
+                        ]
+                    }
+                }
+            ),
+            mirror_state=1,
+        )
+
+        result = find_twitter_links(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1))
+        final_destination.assert_not_called()
+        make_link.assert_called_once_with("https://example.com/article", item)
+        self.assertEqual(item.mirror_state, 2)
+
+    @patch(
+        "rvservices.twitter_service.utils.final_destination",
         side_effect=lambda url: url,
     )
     @patch(

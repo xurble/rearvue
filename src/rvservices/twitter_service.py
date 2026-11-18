@@ -141,13 +141,13 @@ def find_twitter_links(specific_item=None):
             item.rvlink_set.filter(is_context=False).delete()
             for url in urls:
                 expanded_url = url["expanded_url"]
-                parsed_url = urlparse(expanded_url)
-                host = parsed_url.hostname
-                if (
-                    parsed_url.scheme == "https"
-                    and host
-                    and (host == "twitter.com" or host.endswith(".twitter.com"))
-                ):
+                # Archives often leave quote-tweet links as unexpanded t.co
+                # URLs; resolve them so the tweet check below sees the target.
+                if _hostname(expanded_url) == "t.co":
+                    expanded_url = utils.final_destination(expanded_url)
+                # Links to other tweets are quotes, not previewable pages
+                # (twitter.com/x.com don't serve previews to crawlers).
+                if _is_tweet_host(_hostname(expanded_url)):
                     continue
                 linked, _message = utils.make_link(expanded_url, item)
                 if not linked:
@@ -168,13 +168,22 @@ def find_twitter_links(specific_item=None):
     return result
 
 
+TWEET_HOSTS = ("twitter.com", "x.com")
+
+
+def _hostname(url):
+    return (urlparse(url).hostname or "").lower()
+
+
+def _is_tweet_host(hostname):
+    return any(hostname == host or hostname.endswith("." + host) for host in TWEET_HOSTS)
+
+
 def _discover_archive_urls(item, tweet):
     urls = []
     pattern = r"https?://[^\s<>'\"]+"
     for url in re.findall(pattern, item.caption):
-        parsed = urlparse(url)
-        hostname = (parsed.hostname or "").lower()
-        if hostname == "twitter.com" or hostname.endswith(".twitter.com"):
+        if _is_tweet_host(_hostname(url)):
             continue
         final = utils.final_destination(url)
         short = url.split("://", 1)[1]
