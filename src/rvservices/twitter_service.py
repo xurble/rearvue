@@ -200,8 +200,16 @@ def mirror_twitter(specific_item=None):
         previous_media_ids = snapshot_media_ids(item)
         try:
             tweet = json.loads(item.raw_data)
-            entities = tweet.get("extended_entities") or tweet["entities"]
-            media_items = entities["media"]
+            entities = tweet.get("extended_entities") or tweet.get("entities") or {}
+            media_items = entities.get("media") or []
+            if not media_items:
+                # Queued for mirroring but the payload carries no media: there is
+                # nothing to fetch. Advance the item without touching any media
+                # it already has, rather than failing on every run.
+                complete_media_replacement(item, [])
+                result += OperationResult(processed=1)
+                continue
+
             for media_data in media_items:
                 _mirror_twitter_media(item, media_data)
 

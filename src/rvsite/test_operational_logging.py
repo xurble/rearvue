@@ -321,6 +321,28 @@ class ServiceFailureLoggingTests(TestCase):
         self.assertEqual(item.mirror_state, 0)
         self.assertQuerySetEqual(item.rvmedia_set.all(), [existing])
 
+    def test_twitter_payload_without_media_advances_without_touching_existing_media(self):
+        service = self.create_service("twitter")
+        item = self.create_item(
+            service,
+            raw_data=json.dumps({"full_text": "no media here", "entities": {"urls": []}}),
+            mirror_state=0,
+        )
+        existing = RVMedia.objects.create(
+            item=item,
+            media_type=1,
+            original_media="media/existing-original.jpg",
+        )
+
+        with patch("rvservices.twitter_service._mirror_twitter_media") as mirror_media:
+            result = mirror_twitter(specific_item=item)
+
+        item.refresh_from_db()
+        self.assertEqual(result, OperationResult(processed=1))
+        self.assertEqual(item.mirror_state, 1)
+        mirror_media.assert_not_called()
+        self.assertTrue(RVMedia.objects.filter(id=existing.id).exists())
+
     def test_successful_twitter_repair_atomically_replaces_existing_media(self):
         service = self.create_service("twitter")
         item = self.create_item(
