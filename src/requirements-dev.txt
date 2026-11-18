@@ -129,7 +129,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mysqlclient==2.3.0
     # via -r requirements.in
-nltk==3.10.3
+nltk==3.10.4
     # via safety
 oauthlib==4.0.0
     # via requests-oauthlib
