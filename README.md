@@ -57,7 +57,7 @@ Optional overrides (read in `rearvue/settings.py` via `getattr` where noted):
 | `SECURE_HSTS_INCLUDE_SUBDOMAINS` | Defaults to `True` when `DEBUG` is false |
 | `SECURE_HSTS_PRELOAD` | Defaults to `False`; enable only after confirming preload requirements |
 | `SECURE_PROXY_SSL_HEADER` | Set for a trusted TLS-terminating proxy, e.g. `("HTTP_X_FORWARDED_PROTO", "https")` |
-| `CONN_HEALTH_CHECKS` | Enable Django's per-request health check for reused persistent database connections; the production example enables it |
+| `CONN_HEALTH_CHECKS` | Optional health checks for reused persistent connections; leave persistent connections disabled under ASGI |
 
 Install production dependencies from `src/requirements.txt`. Contributors can instead install `src/requirements-dev.txt`, which includes the runtime set plus debugging and security tools. Run migrations from `src/`, create a superuser, and collect static files as usual for Django.
 

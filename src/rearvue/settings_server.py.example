@@ -31,10 +31,11 @@ DATABASES = {
         "PASSWORD": os.environ["REARVUE_DB_PASSWORD"],
         "HOST": os.getenv("REARVUE_DB_HOST", "127.0.0.1"),
         "PORT": os.getenv("REARVUE_DB_PORT", "3306"),
-        "CONN_MAX_AGE": int(os.getenv("REARVUE_DB_CONN_MAX_AGE", "60")),
+        # Django persistent connections must remain disabled under ASGI. Use a
+        # backend-supported connection pool if persistent reuse is required.
+        "CONN_MAX_AGE": int(os.getenv("REARVUE_DB_CONN_MAX_AGE", "0")),
     }
 }
-CONN_HEALTH_CHECKS = True
 
 DATA_STORE = os.getenv("REARVUE_DATA_STORE", str(DEPLOY_ROOT / "data"))
 LOG_LOCATION = os.getenv("REARVUE_LOG_LOCATION", str(DEPLOY_ROOT / "logs/rearvue.log"))

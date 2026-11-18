@@ -1,6 +1,7 @@
 import datetime
+import importlib
 
-from django.db import connection
+from django.db import connection, migrations
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 from django.utils import timezone
@@ -160,3 +161,15 @@ class RVItemIdentityMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         with self.assertRaisesRegex(RuntimeError, "Resolve duplicate"):
             executor.migrate([self.migrate_to])
+
+    def test_duplicate_preflight_precedes_schema_changes(self):
+        migration_module = importlib.import_module(
+            "rvsite.migrations.0015_rvitem_mcp_identity_revision"
+        )
+        first_operation = migration_module.Migration.operations[0]
+
+        self.assertIsInstance(first_operation, migrations.RunPython)
+        self.assertIs(
+            first_operation.code,
+            migration_module.reject_duplicate_external_identities,
+        )
