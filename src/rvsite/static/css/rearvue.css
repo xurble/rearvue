@@ -350,6 +350,14 @@ a.carousel-control {
     min-width: 0;
 }
 
+/* The prev/next areas span the reserved height, so drop Bootstrap's shading
+   rather than darkening the empty space around shorter images. */
+.media-holder .carousel-control.left,
+.media-holder .carousel-control.right {
+    background-image: none;
+    filter: none;
+}
+
 div.fp_links ul {
     margin-bottom: 20px;
     margin-top:0px;
