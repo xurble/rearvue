@@ -80,7 +80,7 @@ filelock==3.32.4
     # via safety
 flickrapi==2.4.0
     # via -r requirements.in
-gunicorn==26.2.0
+gunicorn==27.0.1
     # via
     #   -r requirements.in
     #   uvicorn-worker

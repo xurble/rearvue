@@ -52,7 +52,7 @@ feedparser-sgmllib==2.1.0
     # via feedparser
 flickrapi==2.4.0
     # via -r requirements.in
-gunicorn==26.2.0
+gunicorn==27.0.1
     # via
     #   -r requirements.in
     #   uvicorn-worker
